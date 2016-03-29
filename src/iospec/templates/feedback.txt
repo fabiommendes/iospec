@@ -1,0 +1,5 @@
+{% if is_correct %}
+Congratulations! Your answer is correct!
+{% else %}
+{{ h1(title) }}
+{% endif %}

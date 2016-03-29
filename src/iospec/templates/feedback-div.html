@@ -1,0 +1,39 @@
+<div class="iospec-feedback">
+    {% if is_correct|default(False) %}
+    <p>Congratulations! Your answer is correct!</p>
+    {% else %}
+    <h3>{{ title }}</h3>
+    <div class="iospec-testcase">
+        <h4>Your response</h4>
+        <code>
+        {% for atom in case[0] %}
+            <span class="iospec-{{ atom.type }}">{{ atom }}</span>
+            {% if atom.type == 'input' %}<br>{% endif %}
+        {% endfor %}
+        </code>
+    </div>
+    <div class="iospec-testcase">
+        <h4>Expected answer</h4>
+        <code>
+        {% for atom in answer_key[0] %}
+            <span class="iospec-{{ atom.type }}">{{ atom }}</span>
+            {% if atom.type == 'input' %}<br>{% endif %}
+        {% endfor %}
+        </code>
+    </div>
+    {% if case[0].is_error %}
+    <div class="iospec-testcase">
+        <h4>Error message</h4>
+        <code>
+            <pre>
+            {% if case[0].error_message.strip() %}
+            {{ case[0].error_message }}
+            {% else %}
+            Unknown error
+            {% endif %}
+            </pre>
+        </code>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>

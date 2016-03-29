@@ -1,0 +1,10 @@
+((* if is_document *))
+\documentclass{\var{ documentclass|default('article') }}
+
+((* else *))
+((* if is_correct *))
+Congratulations! Your answer is correct!
+((* else *))
+\subsection{\var{ title }}
+((* endif *))
+((* endif *))
