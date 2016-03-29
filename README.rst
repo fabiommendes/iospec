@@ -5,7 +5,7 @@ The IoSpec Format
 Basic syntax
 ============
 
-The IoSpecformat is a lightweight markup for specifying the expected inputs and
+The IoSpec format is a lightweight markup for specifying the expected inputs and
 outputs for running a program in an online judge setting. It is designed to be
 unobtrusive in the simple cases, while still having some some advanced
 features. A basic session of an input/output based program running on an
@@ -91,7 +91,7 @@ The contents can be parsed as::
     >>> tree = parse(data_file)
     >>> case = tree[0]
 
-Each case is of a sequence of In/Out strings::
+Each test case is a sequence of In/Out strings::
 
     >>> list(case)
     [Out('Say your name: '), In('John'), Out('Hello, John!')]
