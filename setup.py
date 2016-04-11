@@ -43,5 +43,6 @@ distribution = setup(
     entry_points={
         'console_scripts': ['iospec = iospec.__main__:main'],
     },
-    zip_safe=False, requires=['jinja2']
+    zip_safe=False,
+    requires=['jinja2', 'pygeneric>=0.3']
 )

@@ -100,19 +100,19 @@ class Text:
 @iscommand
 class Int:
     def parse(self, arg):
-        pass
+        return parse_number(arg, int)
 
-    def generate(self, value):
-        pass
+    def generate(self, interval):
+        return random.randint(*interval)
 
 
 @iscommand
 class Float:
     def parse(self, arg):
-        pass
+        return parse_number(arg, float, minvalue=-2**50, maxvalue=2**50)
 
-    def generate(self, value):
-        pass
+    def generate(self, interval):
+        return random.uniform(*interval)
 
 
 # noinspection PyUnresolvedReferences
@@ -132,3 +132,58 @@ class Foo:
 
     def generate(self, n):
         return 'foo' * n
+
+
+#
+# Auxiliary functions
+#
+def parse_number(arg, number=int, minvalue=-2**31, maxvalue=2**31 - 1):
+    """Parse a string of text that represents a valid numeric range.
+
+    The syntax is:
+             ==> (minvalue, maxvalue)
+        +    ==> (0, maxvalue)
+        -    ==> (minvalue, 0)
+        ++   ==> (1, maxvalue)
+        --   ==> (minvalue, -1)
+        +a   ==> (0, a)
+        -a   ==> (-a, 0)
+        a    ==> (-a, a)
+        a..b ==> (a, b)
+        a:b  ==> (a, b-1)
+    """
+
+    arg = arg.strip()
+
+    try:
+        if not arg:
+            pass
+        elif arg == '+':
+            minvalue = 0
+        elif arg == '-':
+            maxvalue = 0
+        elif arg == '++':
+            minvalue = 1
+        elif arg == '--':
+            maxvalue = -1
+        elif arg.startswith('-'):
+            maxvalue = 0
+            minvalue = -number(arg[1:])
+        elif arg.startswith('+'):
+            minvalue = 0
+            maxvalue = number(arg[1:])
+        elif '..' in arg:
+            min, _, max = arg.partition('..')
+            minvalue = number(min)
+            maxvalue = number(max)
+        elif ':' in arg:
+            min, _, max = arg.partition(':')
+            minvalue = number(min)
+            maxvalue = number(max) - 1
+        else:
+            maxvalue = number(arg)
+            minvalue = -maxvalue
+    except ValueError:
+        raise SyntaxError('invalid interval specification: %s' % arg)
+
+    return (minvalue, maxvalue)

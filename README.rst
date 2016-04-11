@@ -1,14 +1,14 @@
-=================
-The IoSpec Format
-=================
+The IoSpec format is a lightweight markup for specifying the expected inputs and
+outputs for running a program in an online judge setting. It is designed to be
+unobtrusive in the simple cases, while still having some some advanced
+features. This package defines the IoSpec format and provides a Python parser
+to it.
+
 
 Basic syntax
 ============
 
-The IoSpec format is a lightweight markup for specifying the expected inputs and
-outputs for running a program in an online judge setting. It is designed to be
-unobtrusive in the simple cases, while still having some some advanced
-features. A basic session of an input/output based program running on an
+A basic session of an input/output based program running on an
 online judge is specified like this::
 
     Say your name: <John>
@@ -57,19 +57,20 @@ comments, as well::
     |# This specify a line of output that starts with a hash
     || This specify a line of output that starts with a single pipe
 
+
 Another special behavior is triggered by the ellipsis sequence. The example
 above could be written as::
 
     Say your name: <Mary>
     Hello, Mary...Nice to meet you.
 
- In this case, the ellipsis will match any sequence of characters (including
- newlines). The two examples are not exactly the same since the second one
- will match any output that starts with the substring "Hello, Mary" and ends
- with "Nice to meet you.". The first example expects a single newline between
- both.
+In this case, the ellipsis will match any sequence of characters (including
+newlines). The two examples are not exactly the same since the second one
+will match any output that starts with the substring "Hello, Mary" and ends
+with "Nice to meet you.". The first example expects a single newline between
+both.
 
- The ellipsis can be escaped using the "\..." sequence::
+The ellipsis can be escaped using the "\..." sequence::
 
     Quote: <John>
     War is over\... If you want it.
@@ -115,7 +116,7 @@ arguments. The arguments (when they exist) should be separated by commas
 and enclosed in parenthesis. We list all supported indentifiers in the table 
 bellow:
 
-+================+=============================================================+
++----------------+-------------------------------------------------------------+
 | Identifier     | Description                                                 |
 +================+=============================================================+
 | $name          | A random single-word ASCII name with no spaces. Accepts an  |
@@ -185,6 +186,8 @@ command names to their respective implementations.
 
 We can also decorate a Python class with a ``@command`` decorator. In this case,
 the class must implement the two methods described bellow.
+
+::
 
     @command
     class beatles:

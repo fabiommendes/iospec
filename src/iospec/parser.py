@@ -2,7 +2,8 @@ import re
 from collections import deque
 from iospec.commands import COMMANDS, wrapped_command
 from iospec.make_commands import COMMANDS as MAKE_COMMANDS
-from iospec.iotypes import *
+from iospec import *
+from iospec.types import CommentDeque
 
 __all__ = ['parse', 'parse_string']
 

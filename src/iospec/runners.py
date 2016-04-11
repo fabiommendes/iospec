@@ -2,7 +2,7 @@ import io
 import sys
 import functools
 from collections import deque
-from iospec.iotypes import In, Out
+from iospec.types import In, Out
 
 
 __all__ = ['IoObserver']

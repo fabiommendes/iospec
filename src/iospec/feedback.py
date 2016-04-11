@@ -1,7 +1,8 @@
 import decimal
 import jinja2
-from iospec.util import tex_escape, static
-from iospec.iotypes import TestCase
+from iospec.util import tex_escape
+from iospec.types import TestCase, IoSpec
+from generic import generic
 
 # Module constants
 error_titles = {
@@ -177,29 +178,51 @@ class disabled:
     INPUTVALUE = ''
 
 
-@static
-def get_feedback(case: TestCase, answer_key: TestCase):
-    """Return a feedback structure that represents the expected error"""
+@generic
+def get_feedback(response: TestCase, answer_key: TestCase):
+    """Return a feedback structure that represents the success/error for a
+    single testcase."""
 
-    if list(case) == list(answer_key):
-        return Feedback(case, answer_key)
+    if list(response) == list(answer_key):
+        return Feedback(response, answer_key)
 
-    feedback = Feedback(case, answer_key, grade=decimal.Decimal(0))
+    feedback = Feedback(response, answer_key, grade=decimal.Decimal(0))
 
     # Presentation errors
-    if presentation_equal(case, answer_key):
+    if presentation_equal(response, answer_key):
         feedback.status = 'wrong-presentation'
         feedback.grade = decimal.Decimal(0.5)
 
     # Wrong answer
-    elif case.type.startswith('io'):
+    elif response.type.startswith('io'):
         feedback.status = 'wrong-answer'
 
     # Error messages
-    elif case.type.startswith('error'):
-        feedback.status = case.type
+    elif response.type.startswith('error'):
+        feedback.status = response.type
     else:
-        raise ValueError('invalid testcase: \n%s' % case.format())
+        raise ValueError('invalid testcase: \n%s' % response.format())
+
+    return feedback
+
+
+@get_feedback.overload
+def _(response: IoSpec, answer_key: IoSpec):
+    value = decimal.Decimal(1)
+    feedback = None
+
+    for resp, key in zip(response, answer_key):
+        curr_feedback = get_feedback(resp, key)
+
+        if feedback is None:
+            feedback = curr_feedback
+
+        if curr_feedback.grade < value:
+            feedback = curr_feedback
+            value = curr_feedback.grade
+
+            if value == 0:
+                break
 
     return feedback
 

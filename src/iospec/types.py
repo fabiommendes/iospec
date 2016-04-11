@@ -1,6 +1,19 @@
 import collections
 import pprint
 import copy
+from generic import generic
+
+
+__all__ = [
+    # Atomic
+    'Atom', 'Comment', 'In', 'Out', 'Command',
+
+    # Nodes
+    'IoSpec', 'TestCase', 'ErrorTestCase', 'IoTestCase', 'InputTestCase',
+
+    # Functions
+    'isequal', 'normalize'
+]
 
 
 #
@@ -53,6 +66,13 @@ class Atom(collections.UserString):
         """Return a copy"""
 
         return copy.copy(self)
+
+    def transform(self, func):
+        """Return a transformed version of itself by the given function"""
+
+        new = copy.copy(self)
+        new.data = func(new.data)
+        return new
 
 
 class Comment(Atom):
@@ -218,7 +238,7 @@ class LinearNode(collections.MutableSequence):
 
     def inputs(self):
         """Return a list of input strings."""
-        return [self.inputs() for _ in self]
+        return [x.inputs() for x in self]
 
     def source(self):
         """Render AST node as iospec source code."""
@@ -316,6 +336,13 @@ class LinearNode(collections.MutableSequence):
         except KeyError:
             raise AttributeError('invalid meta attribute: %r' % attr)
 
+    def transform_strings(self, func):
+        """Transform all visible string values in test case by the given
+        function *inplace*."""
+
+        for case in self:
+            case.transform_strings(func)
+
 
 class IoSpec(LinearNode):
     """Root node of an iospec AST"""
@@ -328,9 +355,6 @@ class IoSpec(LinearNode):
         self.commands = AttrDict(commands or {})
         self.make_commands = AttrDict(make_commands or {})
         self.definitions = list(definitions)
-
-    def inputs(self):
-        return [self.inputs() for _ in range(len(self))]
 
     def source(self):
         prefix = '\n\n'.join(block.strip('\n') for block in self.definitions)
@@ -378,15 +402,29 @@ class IoSpec(LinearNode):
         for case in self:
             case.fuse_outputs()
 
+    def has_errors(self):
+        """Return True if the IoSpec data has some error block"""
+
+        return any(case.error is not None for case in self)
+
+    def get_error(self):
+        """Return an exception that describes the first error encountered in
+        the run."""
+
+        for case in self:
+            if case.error is not None:
+                return case.error
+
 
 class TestCase(LinearNode):
     """Base class for all test cases."""
 
     # noinspection PyArgumentList
-    def __init__(self, data=(), *, priority=None, lineno=None, **kwds):
+    def __init__(self, data=(), *, priority=None, lineno=None, error=None, **kwds):
         super().__init__(data, **kwds)
         self._priority = priority
         self.lineno = lineno
+        self.error = error
 
     @property
     def priority(self):
@@ -404,6 +442,21 @@ class TestCase(LinearNode):
     @property
     def is_error(self):
         return False
+
+    @property
+    def error(self):
+        return self._error
+
+    @error.setter
+    def error(self, value):
+        if isinstance(value, Exception):
+            self._error  = value
+        elif isinstance(value, type) and issubclass(value, Exception):
+            self._error = value()
+        elif value is None:
+            self._error = value
+        else:
+            raise TypeError('expect exception, got %s' % value)
 
     def expand_inputs(self):
         """Expand all computed input nodes *inplace*."""
@@ -424,7 +477,7 @@ class IoTestCase(TestCase):
         return 'io'
 
     def inputs(self):
-        return [x.data for x in self._data if x.type.startswith('input')]
+        return [str(x) for x in self if isinstance(x, In)]
 
     def fuse_outputs(self):
         """Fuse consecutive Out strings together"""
@@ -438,6 +491,11 @@ class IoTestCase(TestCase):
                 del self[idx]
             else:
                 idx += 1
+
+    def transform_strings(self, func):
+        for i, atom in enumerate(self):
+            if isinstance(atom, InOrOut):
+                self[i] = atom.transform(func)
 
 
 class InputTestCase(TestCase):
@@ -472,6 +530,9 @@ class InputTestCase(TestCase):
             source = prefix + '\n' + data
 
         return self._with_comment(source)
+
+    def inputs(self):
+        return [str(x) for x in self]
 
 
 # noinspection PyMethodParameters,PyDecorator,PyArgumentList
@@ -563,6 +624,13 @@ class ErrorTestCase(TestCase):
         source = '@%s-error\n%s%s' % (self.error_type, body, error_msg)
         return self._with_comment(source)
 
+    def inputs(self):
+        return IoTestCase.inputs(self)
+
+    def transform_strings(self, func):
+        super().transform_strings(func)
+        self.error_message = func(self.error_message)
+
 
 #
 # Attribute dict
@@ -594,3 +662,91 @@ class Literal(str):
 
     def __repr__(self):
         return str(self)
+
+
+#
+# Auxiliary functions and normalizers
+#
+def presentation_normalizer(x):
+    x.transform_strings(lambda x: x.casefold().replace(' ', '').replace('\t', ''))
+    return x
+
+
+def _assert_kwargs(D):
+    if not _valid_kwargs.issuperset(D):
+        arg = next(iter(set(D) - _valid_kwargs))
+        raise TypeError('invalid argument: %s' % arg)
+
+
+def normalizer(normalize=None, presentation=False):
+    """Return a normalizer function that performs all given transformations."""
+
+    L = [normalize] if normalize else []
+    if presentation:
+        L.append(presentation_normalizer)
+    L.reverse()
+
+    if L:
+        def func(x):
+            x = x.copy()
+
+            for f in L:
+                x = f(x)
+            return x
+        return func
+    else:
+        return lambda x: x
+
+_valid_kwargs = {'presentation'}
+
+
+def normalize(obj, normalize=None, **kwargs):
+    """Normalize input by the given transformations.
+
+    If a list or tuple is passed, normalize each value and return a list."""
+
+    func = normalizer(normalize, **kwargs)
+
+    if isinstance(obj, LinearNode):
+        return func(obj)
+
+    return [func(x) for x in obj]
+
+
+@generic
+def isequal(x: TestCase, y: TestCase, **kwargs):
+    """Return True if both objects are equal up to some normalization."""
+
+    x, y = normalize([x, y], **kwargs)
+
+    if type(x) is not type(y):
+        return False
+
+    return list(x) == list(y)
+
+
+@isequal.overload
+def _(x: ErrorTestCase, y: ErrorTestCase, **kwargs):
+    x, y = normalize([x, y], **kwargs)
+
+    if x.error_type != y.error_type:
+        return False
+    if x.error_message != y.error_message:
+        return False
+
+    return isequal[TestCase, TestCase](x, y)
+
+
+@isequal.overload
+def _(x: IoSpec, y: IoSpec, **kwargs):
+    func = normalizer(**kwargs)
+
+    if len(x) != len(y):
+        return False
+
+    for (xi, yi) in zip (x, y):
+        if not isequal(xi, yi, normalize=func):
+            return False
+
+    else:
+        return True

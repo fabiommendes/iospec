@@ -3,7 +3,7 @@
 #
 import io
 import pytest
-from iospec.iotypes import Out, In
+from iospec.types import Out, In
 from iospec.runners import IoObserver
 
 
