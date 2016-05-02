@@ -34,7 +34,7 @@ distribution = setup(
     # Packages and depencies
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    install_requires=['jinja2'],
+    install_requires=['jinja2', 'pygeneric>=0.3'],
     package_data={
         '': ['templates/*.*'],
     },
@@ -44,5 +44,4 @@ distribution = setup(
         'console_scripts': ['iospec = iospec.__main__:main'],
     },
     zip_safe=False,
-    requires=['jinja2', 'pygeneric>=0.3']
 )

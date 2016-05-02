@@ -74,6 +74,23 @@ class Atom(collections.UserString):
         new.data = func(new.data)
         return new
 
+    def to_json(self):
+        """Return a pair of [type_name, data] that can be converted to valid
+        json."""
+
+        return type(self).__name__, str(self)
+
+    @classmethod
+    def from_json(cls, data):
+        """Convert data created with to_json() back to a valid Atom object."""
+
+        klass = {
+            'In': In,
+            'Out': Out,
+        }[data[0]]
+
+        return klass(data[1])
+
 
 class Comment(Atom):
     """Represent a raw block of comments"""
@@ -236,10 +253,6 @@ class LinearNode(collections.MutableSequence):
             return self.__dict__ == other.__dict__
         return NotImplemented
 
-    def inputs(self):
-        """Return a list of input strings."""
-        return [x.inputs() for x in self]
-
     def source(self):
         """Render AST node as iospec source code."""
 
@@ -259,7 +272,7 @@ class LinearNode(collections.MutableSequence):
             del self._data[idx]
             raise
 
-    def format(self, *args, **kwds):
+    def pformat(self, *args, **kwds):
         """Format AST in a pprint-like format."""
 
         return pprint.pformat(self.json(), *args, **kwds)
@@ -267,7 +280,7 @@ class LinearNode(collections.MutableSequence):
     def pprint(self, *args, **kwds):
         """Pretty print AST."""
 
-        pprint.pprint(self.json(), *args, **kwds)
+        print(self.pformat(*args, **kwds))
 
     def json(self):
         """JSON-like expansion of the AST.
@@ -278,14 +291,17 @@ class LinearNode(collections.MutableSequence):
         D.update(vars(self))
 
         # Hide default values
-        for key in ['lineno', '_priority', 'comment']:
-            if key in D and D[key] is None:
+        for key in ['lineno', 'comment', 'meta']:
+            if key in D and not D[key]:
                 del D[key]
 
         # Rename private attributes
         D['data'] = D.pop('_data')
-        if '_priority' in D:
-            D['priority'] = D.pop('_priority')
+        for k in ['priority', 'error']:
+            if '_' + k in D:
+                D[k] = value = D.pop('_' + k)
+                if not value:
+                    del D[k]
 
         memo = dict()
 
@@ -360,6 +376,11 @@ class IoSpec(LinearNode):
         prefix = '\n\n'.join(block.strip('\n') for block in self.definitions)
         return prefix + '\n\n'.join(case.source() for case in self)
 
+    def inputs(self):
+        """Return a list of input strings."""
+
+        return [x.inputs() for x in self]
+
     def expand_inputs(self, size=0):
         """Expand all input command nodes into regular In() atoms.
 
@@ -382,7 +403,7 @@ class IoSpec(LinearNode):
             # Expand to reach len(self) == size
             diff = size - len(self)
             pairs = [[case.priority, case] for case in self]
-            total_priority = sum(x[0] for x in pairs)
+            total_priority = max(sum(x[0] for x in pairs), 1)
             for x in pairs:
                 x[0] *= diff / total_priority
 
@@ -414,6 +435,17 @@ class IoSpec(LinearNode):
         for case in self:
             if case.error is not None:
                 return case.error
+
+    def to_json(self):
+        """Convert object to a json structure."""
+
+        return [x.to_json() for x in self]
+
+    @classmethod
+    def from_json(cls, data):
+        """Decode JSON representation of IoSpec data."""
+
+        return cls([TestCase.from_json(x) for x in data])
 
 
 class TestCase(LinearNode):
@@ -458,6 +490,11 @@ class TestCase(LinearNode):
         else:
             raise TypeError('expect exception, got %s' % value)
 
+    def inputs(self):
+        """Return a list of inputs for the test case."""
+
+        raise NotImplementedError
+
     def expand_inputs(self):
         """Expand all computed input nodes *inplace*."""
 
@@ -467,6 +504,17 @@ class TestCase(LinearNode):
 
     def fuse_outputs(self):
         pass
+
+    def to_json(self):
+        return {'type': self.type, 'data': [x.to_json() for x in self]}
+
+    @classmethod
+    def from_json(cls, data):
+        atoms = [Atom.from_json(x) for x in data['data']]
+        if data['type'] == 'io':
+            return IoTestCase(atoms)
+        else:
+            raise NotImplementedError
 
 
 class IoTestCase(TestCase):
@@ -532,7 +580,13 @@ class InputTestCase(TestCase):
         return self._with_comment(source)
 
     def inputs(self):
-        return [str(x) for x in self]
+        out = []
+        for x in self:
+            if isinstance(x, In):
+                out.append(str(x))
+            else:
+                out.append(x.generate())
+        return out
 
 
 # noinspection PyMethodParameters,PyDecorator,PyArgumentList

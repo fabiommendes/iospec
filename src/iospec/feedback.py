@@ -148,6 +148,22 @@ class Feedback:
         line = symbol * size
         return '%s\n%s' % (line, st)
 
+    def to_json(self):
+        data = dict(self.__dict__)
+        data['case'] = self.case.to_json()
+        data['answer_key'] = self.answer_key.to_json()
+        data['grade'] = float(self.grade)
+        return data
+
+    @classmethod
+    def from_json(cls, data):
+        new = object.__new__(cls)
+        for k, v in data.items():
+            setattr(new, k, v)
+        new.case = TestCase.from_json(new.case)
+        new.answer_key = TestCase.from_json(new.answer_key)
+        new.grade = decimal.Decimal(new.grade)
+        return new
 
 #
 # Color support
