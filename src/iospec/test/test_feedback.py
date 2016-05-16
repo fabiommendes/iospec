@@ -29,17 +29,17 @@ def tree_presentation():
 
 @pytest.fixture
 def feedback_ok(tree_ok):
-    return feedback.get_feedback(tree_ok[0], tree_ok[0])
+    return feedback.feedback(tree_ok[0], tree_ok[0])
 
 
 @pytest.fixture
 def feedback_wrong(tree_ok, tree_wrong):
-    return feedback.get_feedback(tree_wrong[0], tree_ok[0])
+    return feedback.feedback(tree_wrong[0], tree_ok[0])
 
 
 @pytest.fixture
 def feedback_presentation(tree_ok, tree_presentation):
-    return feedback.get_feedback(tree_presentation[0], tree_ok[0])
+    return feedback.feedback(tree_presentation[0], tree_ok[0])
 
 
 def test_ok_feedback(feedback_ok):

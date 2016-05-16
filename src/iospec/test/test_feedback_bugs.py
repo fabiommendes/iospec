@@ -6,7 +6,7 @@ from iospec import feedback
 def test_hello_wrong():
     correct = ioparse('hello world!')
     wrong = ioparse('hi world!')
-    fb = feedback.get_feedback(wrong[0], correct[0])
+    fb = feedback.feedback(wrong[0], correct[0])
     txt = fb.as_text()
     html = fb.as_html()
     tex = fb.as_latex()

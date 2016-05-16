@@ -3,6 +3,8 @@
 #
 import string
 import random
+from faker import Factory
+faker = Factory.create()
 
 __all__ = ['COMMANDS']
 COMMANDS = {}
