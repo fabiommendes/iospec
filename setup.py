@@ -34,7 +34,7 @@ distribution = setup(
     # Packages and depencies
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    install_requires=['jinja2', 'pygeneric>=0.3', 'faker-factory'],
+    install_requires=['jinja2', 'pygeneric>=0.3', 'fake-factory'],
     package_data={
         '': ['templates/*.*'],
     },
