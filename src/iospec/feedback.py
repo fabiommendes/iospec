@@ -1,8 +1,10 @@
 import decimal
+
 import jinja2
-from iospec.util import tex_escape
-from iospec.types import TestCase, IoTestCase, ErrorTestCase, IoSpec
 from generic import generic
+
+from iospec.types import TestCase, SimpleTestCase, ErrorTestCase, IoSpec
+from iospec.util import tex_escape
 
 # Module constants
 error_titles = {
@@ -73,15 +75,18 @@ class Feedback:
             An optional hint that can be given to the student to help overcome
             some error or improve its solution.
         """
-    
-    def __init__(self, testcase, answer_key, *, grade, status, message=None,
+
+    def __init__(self, testcase, answer_key, grade, status, message=None,
                  hint=None):
         self.testcase = testcase
         self.answer_key = answer_key
-        self.grade = grade
+        self.grade = decimal.Decimal(grade)
         self.status = status
         self.hint = hint
         self.message = message
+
+    def __repr__(self):
+        return '<Feedback: %s (%.2f)>' % (self.status, self.grade)
 
     @classmethod
     def grading(cls, testcase, answer_key):
@@ -90,9 +95,19 @@ class Feedback:
 
         return feedback(testcase, answer_key)
 
+    @classmethod
+    def from_json(cls, data):
+        kwargs = dict(data)
+        testcase = TestCase.from_json(kwargs.pop('testcase'))
+        answer_key = TestCase.from_json(kwargs.pop('answer_key'))
+        return Feedback(testcase, answer_key, **kwargs)
+
     @property
     def is_correct(self):
-        """True if status is 'ok'."""
+        """
+        True if status is 'ok'.
+        """
+
         return self.status == 'ok'
 
     @property
@@ -102,8 +117,9 @@ class Feedback:
         return error_titles[self.status]
 
     def compute_grade(self):
-        """Compute the grade and feedback status from the testcase and answer
-        key."""
+        """
+        Compute the grade and feedback status from the testcase and answer key.
+        """
 
         out = feedback(self.testcase, self.answer_key)
         self.grade = out.grade
@@ -114,12 +130,14 @@ class Feedback:
             self.hint = out.hint
 
     def render(self, method='text', **kwds):
-        """Render object using the specified method."""
+        """
+        Render object using the specified method.
+        """
 
         try:
-            render_format = getattr(self, 'as_' + format)
+            render_format = getattr(self, 'as_' + method)
         except AttributeError:
-            raise ValueError('unknown format: %r' % format)
+            raise ValueError('unknown format: %r' % method)
         else:
             return render_format(**kwds)
 
@@ -149,7 +167,7 @@ class Feedback:
         return self._render('feedback.tex', latex=True)
 
     def _render(self, template, latex=False, **kwds):
-        ns = {
+        context = {
             'case': self.testcase,
             'answer_key': self.answer_key,
             'grade': self.grade,
@@ -158,7 +176,7 @@ class Feedback:
             'hint': self.hint,
             'message': self.message,
             'is_correct': self.is_correct,
-            'h1': self._overunderline,
+            'h1': self._over_underline,
             'h2': self._underline,
         }
 
@@ -169,14 +187,14 @@ class Feedback:
             template = jinja_env.get_template(template)
 
         # Render it!
-        ns.update(kwds)
-        data = template.render(**ns)
+        context.update(kwds)
+        data = template.render(**context)
         if data.endswith('\n'):
             return data[:-1]
         return data
 
     @staticmethod
-    def _overunderline(st, symbol='='):
+    def _over_underline(st, symbol='='):
         st = (st or '   ').replace('\t', '    ')
         size = max(len(line) for line in st.splitlines())
         line = symbol * size
@@ -197,24 +215,20 @@ class Feedback:
         return '%s\n%s' % (line, st)
 
     def to_json(self):
-        """Convert feedback to a JSON compatible structure of dictionaries and
-        lists."""
+        """
+        Convert feedback to a JSON compatible structure of dictionaries and
+        lists.
+        """
+
+        if not hasattr(self, 'testcase'):
+            self.testcase = self.case
+            del self.case
 
         data = dict(self.__dict__)
-        data['case'] = self.testcase.to_json()
+        data['testcase'] = self.testcase.to_json()
         data['answer_key'] = self.answer_key.to_json()
         data['grade'] = float(self.grade)
         return data
-
-    @classmethod
-    def from_json(cls, data):
-        new = object.__new__(cls)
-        for k, v in data.items():
-            setattr(new, k, v)
-        new.case = TestCase.from_json(new.case)
-        new.answer_key = TestCase.from_json(new.answer_key)
-        new.grade = decimal.Decimal(new.grade)
-        return new
 
 
 #
@@ -234,7 +248,6 @@ class color:
 
 
 class disabled:
-    BOLD = ''
     HEADER = ''
     OKBLUE = ''
     OKGREEN = ''
@@ -248,15 +261,17 @@ class disabled:
 
 @generic
 def feedback(response: TestCase, answer_key: TestCase):
-    """Return a feedback structure that represents the success/error for a
-    single testcase."""
+    """
+    Return a feedback structure that represents the success/error for a single
+    test case.
+    """
 
     grade = decimal.Decimal(0)
     status = None
 
     # Error messages
     if isinstance(response, ErrorTestCase):
-        status = response.type
+        status = 'error-' + response.error_type
 
     # Correct response
     elif list(response) == list(answer_key):
@@ -269,7 +284,7 @@ def feedback(response: TestCase, answer_key: TestCase):
         grade = decimal.Decimal(0.5)
 
     # Wrong answer
-    elif isinstance(response, IoTestCase):
+    elif isinstance(response, SimpleTestCase):
         status = 'wrong-answer'
 
     # Invalid
@@ -282,27 +297,30 @@ def feedback(response: TestCase, answer_key: TestCase):
 @feedback.overload
 def _(response: IoSpec, answer_key: IoSpec):
     value = decimal.Decimal(1)
-    feedback = None
+    fb = None
 
     for resp, key in zip(response, answer_key):
-        curr_feedback = feedback(resp, key)
+        curr_feedback = fb(resp, key)
 
-        if feedback is None:
-            feedback = curr_feedback
+        if fb is None:
+            fb = curr_feedback
 
         if curr_feedback.grade < value:
-            feedback = curr_feedback
+            fb = curr_feedback
             value = curr_feedback.grade
 
             if value == 0:
                 break
 
-    return feedback
+    return fb
 
 
 def presentation_equal(case1, case2):
-    """Return True if both cases are equal after case-folding and stripping all
-    whitespace"""
+    """
+    Return True if both cases are equal after case-folding and stripping all
+    whitespace.
+    """
 
-    #TODO: implement
-    return case1 == case2
+    case1_folded = [x.normalize_presentation() for x in case1]
+    case2_folded = [x.normalize_presentation() for x in case2]
+    return case1_folded == case2_folded

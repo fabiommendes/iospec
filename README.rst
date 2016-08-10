@@ -2,7 +2,7 @@ The IoSpec format is a lightweight markup for specifying the expected inputs and
 outputs for running a program in an online judge setting. It is designed to be
 unobtrusive in the simple cases, while still having some some advanced
 features. This package defines the IoSpec format and provides a Python parser
-to it.
+for it.
 
 
 Basic syntax
@@ -16,7 +16,7 @@ online judge is specified like this::
     
 In this example, the string between angle brackets is considered to be an input
 and everything else is the expected output. Different runs should be separated by 
-a blank line::
+blank lines::
 
     Say your name: <John>
     Hello, John!
@@ -24,9 +24,9 @@ a blank line::
     Say your name: <Mary>
     Hello, Mary!
 
-We call each of these runs an iospec "test case". What we are saying in the above
-example is that when given the input ``John``, the program should print ``Hello, John!`` while
-in the second run, when the input will be ``Mary``,  the program should print 
+We call each of these runs an iospec "test case". The above example is declaring an
+interaction in which given the input ``John``, the program should print ``Hello, John!``
+while in the second run, when the input will be ``Mary``, and the program will print
 ``Hello, Mary!``.
 
 A IoSpec source file consists of any number of test cases and some special
@@ -47,8 +47,8 @@ one should start each line with pipe character::
 The pipe character only has effect if it starts a line. The pipe is not rigorously
 necessary in the second and fourth lines, but probably should be there for
 clarity. If the the line starts with two pipes, the first will be ignored and
-the second one will be included in the expected output. This method can be used to escape
-comments, as well::
+the second one will be included in the expected output. This method can be used to
+escape pipe characters and  comments::
 
 
     # This is a comment and is ignored.
@@ -107,13 +107,11 @@ replace the angle bracket syntax with a dollar sign identifier::
     Say your name: $name
     Hello, ...!
 
-The $name input string will be picked randomly by the iospec runner. We 
-introduced the ellipsis syntax: it is used to match any number of characters
-inside the line (followed by an exclamation mark, in this case).
+The $name input string will be picked randomly by the iospec runner.
 
-There are many accepted indentifiers and some of them can also receive 
+There are many accepted identifiers and some of them can also receive
 arguments. The arguments (when they exist) should be separated by commas
-and enclosed in parenthesis. We list all supported indentifiers in the table 
+and enclosed in parenthesis. We list the most common identifiers in the table
 bellow:
 
 +----------------+-------------------------------------------------------------+
@@ -205,11 +203,11 @@ the class must implement the two methods described bellow.
                 raise SyntaxError
             return value
             
-        def generate(self, value):
+        def generate(self, argument):
             """This function is called to generate a new value from the 
             arguments passed through the parse() method."""
             
-            return self.beatles[value]
+            return self.beatles[argument]
 
 The class solution is more robust and probably should be preferred in command
 libraries. The greatest advantage is that arguments are parsed (and thus
@@ -217,43 +215,45 @@ error are catch) during the parsing phase. Functions are only executed during
 command execution.
 
 
-Advanced computed inputs
-------------------------
+.. advanced inputs
+    Advanced computed inputs
+    ------------------------
 
-Sometimes even personalized input commands are not flexible enough. One may need
-to generate successive inputs that have some special relation with each other.
-For instance, the vertices of a convex polygon cannot be created by a naive
-``$point`` command: a set of random vertices is very likely to form convex and
-concave polygons alike.
+    Sometimes even personalized input commands are not flexible enough. One may need
+    to generate successive inputs that have some special relation with each other.
+    For instance, the vertices of a convex polygon cannot be created by a naive
+    ``$point`` command: a set of random vertices is very likely to form convex and
+    concave polygons alike.
 
-The solution is to use the ``@generator`` decorator to mark a python
-generator function that computes inputs in batch. These inputs can be referred
-by the identifiers $0, $1, $2, etc in a block that starts with the @generate
-command::
+    The solution is to use the ``@generator`` decorator to mark a python
+    generator function that computes inputs in batch. These inputs can be referred
+    by the identifiers $0, $1, $2, etc in a block that starts with the @generate
+    command::
 
-    @import random
-    
-    @generator
-    def increasing_numbers(N):
-        N = int(N)
-        yield from sorted([random.random() for _ in range(N)])
-        
-    @generate increasing_numbers(2)
-        Smaller: $0
-        Larger: $1
-        Sum: ...
+        @import random
+
+        @generator
+        def increasing_numbers(N):
+            N = int(N)
+            yield from sorted([random.random() for _ in range(N)])
+
+        @generate increasing_numbers(2)
+            Smaller: $0
+            Larger: $1
+            Sum: ...
 
         
 Input blocks
 ============
 
-The IoSpec also can specify input-only runs, which are useful in the case a
-third party computes the corresponding outputs from a reference program.
+The IoSpec also can specify input-only runs, which are useful when a  third party
+computes the corresponding outputs from a reference program.
 There are a few basic commands that define input-only blocks. The ``@input``
-command defines a block in which either each input is separated by semicolons
+command defines a block in which each input is either separated by semicolons
 or each input corresponds to a line in an indented block bellow the command::
 
     # Here we specify only the inputs of a program
+    # Be careful to avoid putting spurious spaces between your inputs
     @input John;Paul;George;Ringo;$name
 
     # Indentation is very important and must be exactly 4 spaces long.

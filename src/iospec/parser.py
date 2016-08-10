@@ -1,11 +1,11 @@
 import re
 from collections import deque
-from iospec.commands import COMMANDS, wrapped_command
-from iospec.make_commands import COMMANDS as MAKE_COMMANDS
+
 from iospec import *
+from iospec.commands import COMMANDS, wrapped_command
 from iospec.types import CommentDeque
 
-__all__ = ['parse', 'parse_string']
+__all__ = ['parse', 'parse_string', 'IoSpecSyntaxError']
 
 
 def parse(file, commands=None):
@@ -20,17 +20,23 @@ def parse(file, commands=None):
             data = F.read()
         return parse_string(data)
     return parse_string(file.read(), commands=commands)
-    
-    
+
+
 def parse_string(text, commands=None):
     """Parse a string of iospec data."""
 
-    parser = IoSpecParser(text, commands=commands)
-    return parser.parse()
+    parser_job = IoSpecParser(text, commands=commands)
+    return parser_job.parse()
+
+
+class IoSpecSyntaxError(Exception):
+    """Raised for errors in iospec syntax."""
 
 
 class IoSpecParser:
-    """A parsing job that parses a single IoSpec source."""
+    """
+    A parsing job that parses a single IoSpec source.
+    """
 
     def __init__(self, source, commands=None):
         # Prepare global context
@@ -38,39 +44,42 @@ class IoSpecParser:
         self.extra_commands = dict(commands or {})
         self.commands = COMMANDS.copy()
         self.commands.update(self.extra_commands)
-        self.make_commands = MAKE_COMMANDS.copy()
         self.namespace = {}
 
         # Initialize parsing job
         self.is_parsed = False
         self.lineno = 0
-        self.tree = IoSpec(
-            commands=self.commands,
-            make_commands=self.make_commands,
-        )
-        self.commands = self.tree.commands
-        self.make_commands = self.tree.make_commands
+        self.ast = IoSpec(commands=self.commands)
+        self.commands = self.ast.commands
+        self.definitions = self.ast.definitions
         self.groups = group_blocks(enumerate(self.source.splitlines(), 1))
 
+    def append_definition(self, definition):
+        """
+        Append definition to the resulting definitions list.
+        """
+
+        self.definitions.append(definition)
+
+    #
+    # Parsing functions
+    #
     def parse(self):
         """Compute and return the parse tree"""
 
         if self.is_parsed:
-            return self.tree
+            return self.ast
 
         # Extract all blocks from source
         for group in self.groups:
             block = self.parse_group(group)
             if block is not None:
-                self.tree.append(block)
+                self.ast.append(block)
 
-        self.tree.fuse_outputs()
+        self.ast.fuse_outputs()
         self.is_parsed = True
-        return self.tree
+        return self.ast
 
-    #
-    # Parsing functions
-    #
     def parse_group(self, lines):
         """Parse all lines in group and return the parsed tree."""
 
@@ -87,12 +96,13 @@ class IoSpecParser:
             return self.parse_input_block(lines)
         elif (first_line.startswith('@timeout-error') or
               first_line.startswith('@build-error') or
-              first_line.startswith('@runtime-error') or
-              first_line.startswith('@earlytermination-error')):
+              first_line.startswith('@runtime-error')):
             return self.parse_error_block(lines)
         elif first_line.startswith('@'):
             idx, line = lines[0]
-            raise SyntaxError('invalid command at line %s: %s' % (idx, line))
+            raise IoSpecSyntaxError(
+                'invalid command at line %s: %s' % (idx, line)
+            )
         else:
             return self.parse_regular_block(lines)
 
@@ -103,6 +113,7 @@ class IoSpecParser:
 
         while lines:
             idx, line = lines.popleft()
+            original_line = line
 
             # Line-start flags
             if line.startswith('|'):
@@ -126,18 +137,25 @@ class IoSpecParser:
                 stream.append(self._normalize_computed_input(name, args))
                 continue
 
-        return IoTestCase(stream, comment=lines.comment)
+            if line:
+                raise IoSpecSyntaxError(
+                    'Invalid output line: %s' % original_line
+                )
+
+        return SimpleTestCase(stream, comment=lines.comment)
 
     def parse_input_command(self, lines):
         idx, line = lines.popleft()
         if line.strip() != '@command':
-            raise SyntaxError('invalid command in line %s: %s' % (idx, line))
+            raise IoSpecSyntaxError(
+                'invalid command in line %s: %s' % (idx, line)
+            )
 
         self.groups.send(lines)
         source = consume_python_code_block(self.groups)
 
         # Saves in definitions
-        self.tree.definitions.append('@command\n' + source)
+        self.append_definition('@command\n' + source)
 
         # Execute source and collect python object
         namespace = {}
@@ -145,8 +163,8 @@ class IoSpecParser:
         if len(namespace) != 1:
             data = ['    ' + line for line in source.splitlines()]
             data = '\n'.join(data)
-            raise SyntaxError('python source does not define a single'
-                              ' object:\n' + data)
+            raise IoSpecSyntaxError('python source does not define a single'
+                                    ' object:\n' + data)
         name, obj = namespace.popitem()
         self.namespace[name] = obj
         self.commands[name] = wrapped_command(obj)
@@ -160,11 +178,11 @@ class IoSpecParser:
         exec(line[1:], self.namespace)
 
         # Block import statements together
-        if self.tree.definitions:
-            last_def = self.tree.definitions[-1]
+        if self.ast.definitions:
+            last_def = self.ast.definitions[-1]
             if last_def.startswith('@import') or last_def.startswith('@from'):
-                line = '%s\n%s' % (self.tree.definitions.pop(), line)
-        self.tree.definitions.append(line)
+                line = '%s\n%s' % (self.ast.definitions.pop(), line)
+        self.append_definition(line)
 
     def parse_plain_input(self, lines):
         lineno, line = lines.popleft()
@@ -172,8 +190,9 @@ class IoSpecParser:
         # Inline plain input
         if line.strip() != '@plain':
             if not line[6].isspace():
-                raise SyntaxError('line %s: expects an whitespace after @plain' 
-                                  % lineno)
+                raise IoSpecSyntaxError(
+                    'line %s: expects an whitespace after @plain'
+                    % lineno)
             data = line[7:].replace('\\;', '\x00')
             data = [In(x.replace('\x00', ';')) for x in data.split(';')]
             return InputTestCase(
@@ -202,8 +221,9 @@ class IoSpecParser:
         if line.strip() != '@input':
             inline = True
             if not line[6].isspace():
-                raise SyntaxError('line %s: expects an whitespace after @plain'
-                                  % lineno)
+                raise IoSpecSyntaxError(
+                    'line %s: expects an whitespace after @plain' % lineno
+                )
             data = line[7:].replace('\\;', '\x00')
             cases = [x.replace('\x00', ';') for x in data.split(';')]
 
@@ -223,7 +243,7 @@ class IoSpecParser:
                     name, args = match.groups()
                     cases[i] = self._normalize_computed_input(name, args)
                 else:
-                    raise SyntaxError('invalid syntax')
+                    raise IoSpecSyntaxError('invalid syntax')
             else:
                 cases[i] = In(x)
         return InputTestCase(
@@ -235,11 +255,10 @@ class IoSpecParser:
 
     def parse_error_block(self, lines):
         lineno, line = lines.popleft()
-        error_types = ('@timeout-error', '@runtime-error', '@build-error',
-                       '@earlytermination-error')
+        error_types = ('@timeout-error', '@runtime-error', '@build-error')
 
         if line.strip() not in error_types:
-            raise SyntaxError(lineno)
+            raise IoSpecSyntaxError(lineno)
         error_type = line.strip()[1:-6]
 
         self.groups.send(lines)
@@ -251,7 +270,7 @@ class IoSpecParser:
             for i, line in enumerate(lines):
                 if line.startswith('@error'):
                     if line.strip() != '@error':
-                        raise SyntaxError(line)
+                        raise IoSpecSyntaxError(line)
                     body_lines = lines[:i]
                     error = '\n'.join(lines[i + 1:])
                     break
@@ -270,10 +289,6 @@ class IoSpecParser:
             comment=lines.comment,
         )
 
-
-    #
-    # Utility methods
-    #
     def _normalize_computed_input(self, name, args):
         obj = self.commands[name]
         parsed_args = obj.parse(args)
@@ -336,18 +351,19 @@ def consume_python_code_block(groups):
         head += '\n' + line
 
     if not line.startswith('def') or line.startswith('class'):
-        raise SyntaxError('expect function or class definition on line: %s' %
-                          lineno)
+        raise IoSpecSyntaxError(
+            'expect function or class definition on line: %s' % lineno
+        )
 
     # Add all lines to source
     groups.send(lines)
     data = consume_indented_code_block(groups)
-    return'%s\n%s' % (head, data)
+    return '%s\n%s' % (head, data)
 
 
 def consume_indented_code_block(groups):
     """Consume all indented lines in groups and return the source string."""
-    
+
     source = []
     lines = CommentDeque()
 
@@ -363,24 +379,28 @@ def consume_indented_code_block(groups):
                 break
         if not go:
             break
-    if lines:                
+    if lines:
         groups.send(lines)
-        
+
     return '\n'.join(source)
 
 
-def strip_columns(data, N=4):
-    """Strip N of the leftmost columns.
+def strip_columns(data, n=4):
+    """
+    Strip n of the leftmost columns.
 
-    Raises an error if any non-whitespace content is found in these columns."""
+    Raises an error if any non-whitespace content is found in these columns.
+    """
 
     def error(st):
-        raise SyntaxError('line must be empty up to the %s-th column, got %r'
-                          % (N, st))
+        raise IoSpecSyntaxError(
+            'line must be empty up to the %s-th column, got %r' % (n, st)
+        )
+
     lines = data.splitlines()
 
     for idx, line in enumerate(lines):
-        if len(line) >= N:
+        if len(line) >= n:
             lines[idx] = line[4:]
             if set(line[:4]) != {' '}:
                 error(line)
@@ -390,8 +410,8 @@ def strip_columns(data, N=4):
             error(line)
 
     return '\n'.join(lines)
-    
-    
+
+
 #
 # Token definitions
 #

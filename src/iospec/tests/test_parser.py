@@ -1,6 +1,6 @@
 import io
 import pytest
-from iospec import parse, parse_string
+from iospec import parse, parse_string, IoSpecSyntaxError
 
 
 def test_open_file():
@@ -14,6 +14,11 @@ def test_simple_io():
     assert case[0] == 'foo'
     assert case[1] == 'bar'
     assert case[2] == 'foobar'
+
+
+def test_broken_io():
+    with pytest.raises(IoSpecSyntaxError):
+        parse_string('foo<bar\nfoobar')
 
 
 def test_multiline_with_pipes():
@@ -58,8 +63,3 @@ foo: $foo
      assert len(tree) == 1
      assert 'foo' in tree.commands
      assert tree[0, 1].data == '$foo'
-
-
-if __name__ == '__main__':
-    pytest.main('test_parser.py')
-

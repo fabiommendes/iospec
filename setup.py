@@ -23,7 +23,7 @@ distribution = setup(
     url='https://github.com/fabiommendes/iospec',
     long_description=open('README.rst').read(),
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License (GPL)',
         'Operating System :: POSIX',
@@ -34,7 +34,12 @@ distribution = setup(
     # Packages and depencies
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    install_requires=['jinja2', 'pygeneric>=0.3', 'faker-factory'],
+    install_requires=[
+        'jinja2',
+        'pygeneric>=0.3',
+        'unidecode',
+        'fake-factory'
+    ],
     package_data={
         '': ['templates/*.*'],
     },

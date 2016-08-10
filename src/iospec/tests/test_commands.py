@@ -15,7 +15,3 @@ def test_parse_number():
     assert func('10') == (-10, 10)
     assert func('10..20') == (10, 20)
     assert func('10:20') == (10, 19)
-
-
-if __name__ == '__main__':
-    pytest.main('test_commands.py')

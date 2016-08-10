@@ -1,26 +1,23 @@
 import collections
-import pprint
 import copy
-from generic import generic
+import pprint
 
+from generic import generic
+from unidecode import unidecode
 
 __all__ = [
     # Atomic
     'Atom', 'Comment', 'In', 'Out', 'Command',
 
     # Nodes
-    'IoSpec', 'TestCase', 'ErrorTestCase', 'IoTestCase', 'InputTestCase',
+    'IoSpec', 'TestCase', 'ErrorTestCase', 'SimpleTestCase', 'InputTestCase',
 
     # Functions
     'isequal', 'normalize'
 ]
 
 
-#
-# Atomic AST nodes
-#
 class Atom(collections.UserString):
-
     """Base class for all atomic elements"""
 
     type = 'atom'
@@ -74,9 +71,18 @@ class Atom(collections.UserString):
         new.data = func(new.data)
         return new
 
+    def normalize_presentation(self):
+        """
+        Normalize string to compare with other strings when looking for
+        presentation errors.
+        """
+
+        return self.transform(lambda x: unidecode(x.casefold().strip()))
+
     def to_json(self):
-        """Return a pair of [type_name, data] that can be converted to valid
-        json."""
+        """
+        Return a pair of [type_name, data] that can be converted to valid json.
+        """
 
         return type(self).__name__, str(self)
 
@@ -142,19 +148,18 @@ class Out(InOrOut):
 
 
 class Command(Atom):
-    """A computed input of the form $name(args).
+    """
+    A computed input of the form $name(args).
 
-    Parameters
-    ----------
-
-    name : str
-        Name of the compute input
-    args : str
-        The string between parenthesis
-    factory : callable
-        A function that is used to generate new input values.
-    parsed_args : anything
-        The parsed argument string.
+    Args:
+        name (str)
+            Name of the compute input
+        args (str)
+            The string between parenthesis
+        factory (callable)
+            A function that is used to generate new input values.
+        parsed_args
+            The parsed argument string.
     """
 
     type = 'input-command'
@@ -204,7 +209,8 @@ class Command(Atom):
 # Container nodes for the iospec AST
 #
 class LinearNode(collections.MutableSequence):
-    """We call a single interaction/run of a program with a set of user inputs
+    """
+    We call a single interaction/run of a program with a set of user inputs
     a "test case".
 
     There are different types of case nodes, either "error-*", for representing
@@ -212,7 +218,6 @@ class LinearNode(collections.MutableSequence):
     finally "io-*", that represents both inputs and outputs of a successful
     program run.
     """
-    type = 'testcase'
 
     def __init__(self, data=(), *, comment=None):
         self._data = []
@@ -283,25 +288,27 @@ class LinearNode(collections.MutableSequence):
         print(self.pformat(*args, **kwds))
 
     def json(self):
-        """JSON-like expansion of the AST.
+        """
+        JSON-like expansion of the AST.
 
-        All linear node instances are expanded into dictionaries."""
+        All linear node instances are expanded into dictionaries.
+        """
 
-        D = {'type': getattr(self, 'type', type(self).__name__)}
-        D.update(vars(self))
+        dic = {'type': getattr(self, 'type', type(self).__name__)}
+        dic.update(vars(self))
 
         # Hide default values
         for key in ['lineno', 'comment', 'meta']:
-            if key in D and not D[key]:
-                del D[key]
+            if key in dic and not dic[key]:
+                del dic[key]
 
         # Rename private attributes
-        D['data'] = D.pop('_data')
+        dic['data'] = dic.pop('_data')
         for k in ['priority', 'error']:
-            if '_' + k in D:
-                D[k] = value = D.pop('_' + k)
+            if '_' + k in dic:
+                dic[k] = value = dic.pop('_' + k)
                 if not value:
-                    del D[k]
+                    del dic[k]
 
         memo = dict()
 
@@ -326,23 +333,25 @@ class LinearNode(collections.MutableSequence):
             else:
                 return x
 
-        return {k: json(v) for (k, v) in D.items()}
+        return {k: json(v) for (k, v) in dic.items()}
 
     def copy(self):
         """Return a deep copy."""
 
         return copy.deepcopy(self)
 
-    def setmeta(self, attr, value):
+    def set_meta(self, attr, value):
         """Writes an attribute of meta information."""
 
         self.meta[attr] = value
 
-    def getmeta(self, attr, *args):
-        """Retrieves an attribute of meta information.
+    def get_meta(self, attr, *args):
+        """
+        Retrieves an attribute of meta information.
 
         Can give a second positional argument with the default value to return
-        if the attribute does not exist."""
+        if the attribute does not exist.
+        """
 
         if args:
             return self.meta.get(attr, args[0])
@@ -353,47 +362,84 @@ class LinearNode(collections.MutableSequence):
             raise AttributeError('invalid meta attribute: %r' % attr)
 
     def transform_strings(self, func):
-        """Transform all visible string values in test case by the given
-        function *inplace*."""
+        """
+        Transform all visible string values in test case by the given function
+        *inplace*.
+        """
 
         for case in self:
             case.transform_strings(func)
 
 
+# noinspection PyUnresolvedReferences
 class IoSpec(LinearNode):
-    """Root node of an iospec AST"""
+    """
+    Root node of an iospec AST.
 
-    type = 'iospec-root'
+    Args:
+        data (seq):
+            A (possibly empty) sequence of test cases.
+        commands (dict):
+            A mapping of command names to their respective functions or Command
+            subclasses.
+        definitions (list):
+            A list of command definitions declared in the IoSpec source.
 
-    def __init__(self, data=(), *,
-                 commands=None, make_commands=None, definitions=()):
+    Attributes:
+        has_errors (bool):
+            True if IoSpec structure has an ErrorTestCase child.
+        is_simple (bool):
+            True if all children are instances of SimpleTestCase.
+        is_expanded (bool):
+            True if all children are instances of SimpleTestCase that have all
+            input commands expanded. This tells that each child is made of just
+            a sequence of :class:`In` and :class:`Out` strings.
+    """
+
+    @property
+    def has_errors(self):
+        return any(isinstance(x, ErrorTestCase) for x in self)
+
+    @property
+    def is_simple(self):
+        return all(x.is_simple for x in self)
+
+    @property
+    def is_expanded(self):
+        return all(x.is_expanded for x in self)
+
+    def __init__(self, data=(), *, commands=None, definitions=None):
         super().__init__(data)
         self.commands = AttrDict(commands or {})
-        self.make_commands = AttrDict(make_commands or {})
-        self.definitions = list(definitions)
+        self.definitions = []
+        self.definitions.extend(definitions or ())
+
+    def __repr__(self):
+        return '<IoSpec: %s>' % [x.type for x in self]
 
     def source(self):
         prefix = '\n\n'.join(block.strip('\n') for block in self.definitions)
         return prefix + '\n\n'.join(case.source() for case in self)
 
     def inputs(self):
-        """Return a list of input strings."""
+        """
+        Return a list of lists of input strings.
+        """
 
         return [x.inputs() for x in self]
 
     def expand_inputs(self, size=0):
-        """Expand all input command nodes into regular In() atoms.
+        """
+        Expand all input command nodes into regular In() atoms.
 
         The changes are done *inplace*.
 
 
-        Parameters
-        ----------
-
-        size:
-            The target size for the total number of test cases. If the tree has
-            less test cases than size, it will create additional test cases
-            according to the test case priority.
+        Args:
+            size
+                The target size for the total number of test cases. If the tree
+                has less test cases than size, it will create additional test
+                cases according to the test case priority.
         """
 
         if size < len(self):
@@ -402,6 +448,8 @@ class IoSpec(LinearNode):
         else:
             # Expand to reach len(self) == size
             diff = size - len(self)
+            if not diff:
+                return
             pairs = [[case.priority, case] for case in self]
             total_priority = max(sum(x[0] for x in pairs), 1)
             for x in pairs:
@@ -418,45 +466,81 @@ class IoSpec(LinearNode):
             self.expand_inputs()
 
     def fuse_outputs(self):
-        """Fuse any consecutive Out() strings together."""
+        """
+        Fuse consecutive Out() strings together *inplace*.
+        """
 
         for case in self:
             case.fuse_outputs()
 
-    def has_errors(self):
-        """Return True if the IoSpec data has some error block"""
+    def get_exception(self):
+        """
+        Return an exception instance that describes the first error encountered
+        in the run.
 
-        return any(case.error is not None for case in self)
-
-    def get_error(self):
-        """Return an exception that describes the first error encountered in
-        the run."""
+        If no errors are found, return None.
+        """
 
         for case in self:
-            if case.error is not None:
-                return case.error
+            if case.is_error:
+                return case.get_exception()
+
+    def get_error_type(self):
+        """
+        Return a string with the first error type encountered in the IoSpec.
+
+        If no errors are found, return None.
+        """
+
+        for case in self:
+            if case.is_error:
+                return case.get_error_type()
+
+    def get_error_message(self):
+        """
+        Return a string with the first error message encountered in the IoSpec.
+
+        If no errors are found, return None.
+        """
+
+        for case in self:
+            if case.is_error:
+                return case.get_error_message()
 
     def to_json(self):
-        """Convert object to a json structure."""
+        """
+        Convert object to a json structure.
+        """
 
         return [x.to_json() for x in self]
 
     @classmethod
     def from_json(cls, data):
-        """Decode JSON representation of IoSpec data."""
+        """
+        Decode JSON representation of IoSpec data.
+        """
 
         return cls([TestCase.from_json(x) for x in data])
 
 
 class TestCase(LinearNode):
-    """Base class for all test cases."""
+    """
+    Base class for all test cases.
+
+    Args:
+        data
+            A sequence of In, Out and Command strings.
+        priority (float)
+            Relative priority of this test case for input expansion.
+        lineno (int)
+            The line number for this test case in the IoSpec source.
+    """
 
     # noinspection PyArgumentList
-    def __init__(self, data=(), *, priority=None, lineno=None, error=None, **kwds):
+    def __init__(self, data=(), *, priority=None, lineno=None, **kwds):
         super().__init__(data, **kwds)
         self._priority = priority
         self.lineno = lineno
-        self.error = error
 
     @property
     def priority(self):
@@ -473,27 +557,27 @@ class TestCase(LinearNode):
 
     @property
     def is_error(self):
-        return False
+        return isinstance(self, ErrorTestCase)
 
     @property
-    def error(self):
-        return self._error
+    def is_simple(self):
+        return isinstance(self, SimpleTestCase)
 
-    @error.setter
-    def error(self, value):
-        if isinstance(value, Exception):
-            self._error  = value
-        elif isinstance(value, type) and issubclass(value, Exception):
-            self._error = value()
-        elif value is None:
-            self._error = value
-        else:
-            raise TypeError('expect exception, got %s' % value)
+    @property
+    def is_expanded(self):
+        io_types = {In, Out}
+        return self.is_simple and set(map(type, self)).issubset(io_types)
+
+    @property
+    def is_input(self):
+        return isinstance(self, InputTestCase)
 
     def inputs(self):
-        """Return a list of inputs for the test case."""
+        """
+        Return a list of inputs for the test case.
+        """
 
-        raise NotImplementedError
+        return [str(x) for x in self if isinstance(x, In)]
 
     def expand_inputs(self):
         """Expand all computed input nodes *inplace*."""
@@ -503,32 +587,9 @@ class TestCase(LinearNode):
                 self[idx] = atom.expand()
 
     def fuse_outputs(self):
-        pass
-
-    def to_json(self):
-        return {'type': self.type, 'data': [x.to_json() for x in self]}
-
-    @classmethod
-    def from_json(cls, data):
-        atoms = [Atom.from_json(x) for x in data['data']]
-        if data['type'] == 'io':
-            return IoTestCase(atoms)
-        else:
-            raise NotImplementedError
-
-
-class IoTestCase(TestCase):
-    """Regular input/output test case."""
-
-    @property
-    def type(self):
-        return 'io'
-
-    def inputs(self):
-        return [str(x) for x in self if isinstance(x, In)]
-
-    def fuse_outputs(self):
-        """Fuse consecutive Out strings together"""
+        """
+        Fuse Out strings together.
+        """
 
         idx = 1
         while idx < len(self):
@@ -545,17 +606,43 @@ class IoTestCase(TestCase):
             if isinstance(atom, InOrOut):
                 self[i] = atom.transform(func)
 
+    def to_json(self):
+        return {'type': self.__class__.__name__.lower()[:-8],
+                'data': [x.to_json() for x in self]}
+
+    @classmethod
+    def from_json(cls, data):
+        json = dict(data)
+        type_name = json.pop('type')
+        atoms = [Atom.from_json(x) for x in json.pop('data')]
+        if type_name == 'simple':
+            result = SimpleTestCase(atoms)
+        elif type_name == 'input':
+            result = InputTestCase(atoms)
+        elif type_name == 'error':
+            result = ErrorTestCase(
+                atoms,
+                error_message=json.get('error_message', ''),
+                error_type=json.get('error_type', 'runtime'),
+            )
+        else:
+            raise ValueError('invalid type: %r' % type_name)
+        if json:
+            raise ValueError('invalid parameter: %s=%r' % json.popitem())
+        return result
+
+
+class SimpleTestCase(TestCase):
+    """Regular input/output test case."""
+
 
 class InputTestCase(TestCase):
-    """Blocks that contain only input entries in which o outputs should be
+    """
+    Blocks that contain only input entries in which o outputs should be
     computed by third parties.
 
     It is created by the @input and @plain decorators of the IoSpec language.
     """
-
-    @property
-    def type(self):
-        return 'input'
 
     def __init__(self, data=(), *, inline=True, **kwds):
         super().__init__(data, **kwds)
@@ -584,78 +671,81 @@ class InputTestCase(TestCase):
         for x in self:
             if isinstance(x, In):
                 out.append(str(x))
-            else:
+            elif isinstance(x, Command):
                 out.append(x.generate())
+            else:
+                raise ValueError('invalid input object: %r' % x)
         return out
 
 
-# noinspection PyMethodParameters,PyDecorator,PyArgumentList
+def _error_test_case_constructor_factory(tt):
+    def method(cls, data=(), **kwds):
+        if not kwds.get('error_type', tt):
+            raise ValueError('invalid error_type: %r' % tt)
+        kwds['error_type'] = tt
+        return cls(data, **kwds)
+
+    method.__name__ = tt
+    method.__doc__ = 'Constructor for %s errors' % tt
+    return classmethod(method)
+
+
 class ErrorTestCase(TestCase):
     """
     Error test cases are created using a decorator::
 
-        @timeout-error
-            a regular block of input/output interactions
-
         @runtime-error
-            a regular block of input/output interactions
+            The main body has a regular block of input/output interactions.
+
+            This error describes the most common case of failure: when an error
+            is triggered during a program execution. Errors can be anything from
+            seg-faults to exceptions, or buffer overflows, etc.
 
             @error
-            a block of messages displayed to stderr
+                optional block of messages displayed to stderr
+
+
+        @timeout-error
+            The main body has a regular block of input/output interactions.
+
+            Timeout errors happen when execution takes longer than expected.
+            It doesn't define an error message since the program did not fail,
+            but the runner decided to terminate its execution.
+
 
         @build-error
-            a regular block of input/output interactions
+            The main body has a block of messages that should be displayed to
+            stderr. Build errors cannot have a regular block of IO interactions
+            since they happen prior to program execution.
 
-            @error
-            a block of messages that should be displayed to stderr
-
-        @earlytermination-error
-            a regular block of input/output interactions
-
-            @error
-            a block of messages that should be displayed to stderr
+            Build errors happen when program is being prepared to execute. Can
+            be a syntax error, compilation error or anything that prevents
+            the program to run.
 
 
-    The need for error blocks is twofold. It may be the case that the desired
-    behavior of a program is to indeed display an error message. It is also
+    Error test cases check if a program fails in some specific way. It is also
     necessary in order to use the IOSpec format to *describe* how a program
-    actually ran.
-
-    The type attribute of an ErrorTestCase is one of 'error-timeout',
-    'error-segfault' or 'error-exception'. In all cases, the error block
-    consists of a data section that has all regular io interactions just like
-    an io block and
+    actually ran, in case an error is found.
     """
 
-    @property
-    def is_error(self):
-        return True
-
-    @property
-    def type(self):
-        return 'error-' + self.error_type
+    build = _error_test_case_constructor_factory('build')
+    runtime = _error_test_case_constructor_factory('runtime')
+    timeout = _error_test_case_constructor_factory('timeout')
 
     def __init__(self, data=(), *,
-                 error_message='', error_type='exception', **kwds):
+                 error_message='', error_type='runtime', **kwds):
         super().__init__(data, **kwds)
-        self.error_message = str(error_message)
-        self.error_type = str(error_type)
+        self.error_message = error_message or ''
+        self.error_type = error_type
 
-    def _factory(tt):
-        @classmethod
-        def method(cls, data=(), **kwds):
-            if not kwds.get('error_type', tt):
-                raise ValueError('invalid error_type: %r' % tt)
-            kwds['error_type'] = tt
-            return cls(data, **kwds)
-        method.__name__ = tt
-        method.__doc__ = 'Constructor for %s errors' % tt
-        return method
-
-    build = _factory('build')
-    runtime = _factory('runtime')
-    timeout = _factory('timeout')
-    earlytermination = _factory('earlytermination')
+        # Check parameters consistency
+        if self.error_type not in ['timeout', 'runtime', 'build']:
+            raise ValueError('invalid error type: %s' % self.error_type)
+        if self.error_type == 'build' and data:
+            raise ValueError('build errors must have an empty data argument')
+        if self.error_type == 'timeout' and self.error_message:
+            raise ValueError('timeout errors do not have an associated error '
+                             'message.')
 
     def source(self):
         if not self._data and not self.error_message:
@@ -663,7 +753,7 @@ class ErrorTestCase(TestCase):
 
         comment, self.comment = self.comment, ''
         try:
-            body = data = super().source()
+            body = super().source()
         finally:
             self.comment = comment
 
@@ -678,18 +768,16 @@ class ErrorTestCase(TestCase):
         source = '@%s-error\n%s%s' % (self.error_type, body, error_msg)
         return self._with_comment(source)
 
-    def inputs(self):
-        return IoTestCase.inputs(self)
-
     def transform_strings(self, func):
         super().transform_strings(func)
         self.error_message = func(self.error_message)
 
 
-#
-# Attribute dict
-#
 class AttrDict(dict):
+    """
+    Dictionary that accept attribute access.
+    """
+
     def __getattr__(self, key):
         try:
             return self[key]
@@ -700,10 +788,10 @@ class AttrDict(dict):
         self[key] = value
 
 
-#
-# Comment deque
-#
 class CommentDeque(collections.deque):
+    """
+    A deque with a .comment string attribute.
+    """
     __slots__ = ['comment']
 
     def __init__(self, data=(), comment=None):
@@ -712,52 +800,52 @@ class CommentDeque(collections.deque):
 
 
 class Literal(str):
-    """A string-like object whose repr() is equal to str()"""
+    """
+    A string-like object whose repr() is equal to str().
+    """
 
     def __repr__(self):
         return str(self)
 
 
-#
-# Auxiliary functions and normalizers
-#
 def presentation_normalizer(x):
-    x.transform_strings(lambda x: x.casefold().replace(' ', '').replace('\t', ''))
+    """
+    Normalize TestCase object to detect presentation errors.
+    """
+    x.transform_strings(
+        lambda x: x.casefold().replace(' ', '').replace('\t', ''))
     return x
 
 
-def _assert_kwargs(D):
-    if not _valid_kwargs.issuperset(D):
-        arg = next(iter(set(D) - _valid_kwargs))
-        raise TypeError('invalid argument: %s' % arg)
-
-
 def normalizer(normalize=None, presentation=False):
-    """Return a normalizer function that performs all given transformations."""
+    """
+    Return a normalizer function that performs all given transformations.
+    """
 
-    L = [normalize] if normalize else []
+    lst = [normalize] if normalize else []
     if presentation:
-        L.append(presentation_normalizer)
-    L.reverse()
+        lst.append(presentation_normalizer)
+    lst.reverse()
 
-    if L:
+    if lst:
         def func(x):
             x = x.copy()
 
-            for f in L:
+            for f in lst:
                 x = f(x)
             return x
+
         return func
     else:
         return lambda x: x
 
-_valid_kwargs = {'presentation'}
-
 
 def normalize(obj, normalize=None, **kwargs):
-    """Normalize input by the given transformations.
+    """
+    Normalize input by the given transformations.
 
-    If a list or tuple is passed, normalize each value and return a list."""
+    If a list or tuple is passed, normalize each value and return a list.
+    """
 
     func = normalizer(normalize, **kwargs)
 
@@ -769,7 +857,9 @@ def normalize(obj, normalize=None, **kwargs):
 
 @generic
 def isequal(x: TestCase, y: TestCase, **kwargs):
-    """Return True if both objects are equal up to some normalization."""
+    """
+    Return True if both objects are equal up to some normalization.
+    """
 
     x, y = normalize([x, y], **kwargs)
 
@@ -798,9 +888,8 @@ def _(x: IoSpec, y: IoSpec, **kwargs):
     if len(x) != len(y):
         return False
 
-    for (xi, yi) in zip (x, y):
+    for (xi, yi) in zip(x, y):
         if not isequal(xi, yi, normalize=func):
             return False
-
     else:
         return True

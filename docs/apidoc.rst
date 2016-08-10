@@ -19,6 +19,6 @@ The IoSpec parse tree
 TestCase elements
 -----------------
 
-We refer to each run of a program as a "test case". The IOSpec implements many
+We refer to each run of a program as a "test case". **iospec** implements many
 different test case blocks in order to adapt to different situations. Perhaps
-the most simple block is a PlainInput
+the most simple block is a SimpleTestCase

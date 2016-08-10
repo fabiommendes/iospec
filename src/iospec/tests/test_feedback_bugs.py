@@ -15,7 +15,3 @@ def test_hello_wrong():
     assert message in txt
     assert message in html
     assert message in tex
-
-
-if __name__ == '__main__':
-    pytest.main('test_feedback_bugs.py')

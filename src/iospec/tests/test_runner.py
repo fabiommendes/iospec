@@ -21,6 +21,3 @@ def test_io_observer():
     namespace)
 
     assert io_obs.flush() == [Out('Name? '), In('Ringo'), Out('Hi Ringo!')]
-
-if __name__ == '__main__':
-    pytest.main('test_runner.py')

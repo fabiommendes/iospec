@@ -62,7 +62,3 @@ def source(request):
 def test_simple_render_back(source):
     parsed = parse_string(source)
     assert source.rstrip() == parsed.source().rstrip()
-
-
-if __name__ == '__main__':
-    pytest.main('test_rendered.py')

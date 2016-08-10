@@ -82,6 +82,3 @@ def test_io_equal(spec1, spec2):
 
 def test_io_equal_presentation(spec1, spec2):
     assert isequal(spec1, spec2, presentation=True)
-
-if __name__ == '__main__':
-    pytest.main('test_types.py')

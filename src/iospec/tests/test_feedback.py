@@ -22,8 +22,8 @@ def tree_wrong():
 @pytest.fixture
 def tree_presentation():
     return ioparse(
-        'foo:<bar>\n'
-        'hi bar!'
+        'Foo:<bar>\n'
+        'Hi Bar!'
     )
 
 
@@ -65,5 +65,14 @@ def test_wrong_feedback(feedback_wrong):
     assert message in html
     assert message in tex
 
-if __name__ == '__main__':
-    pytest.main('test_feedback.py')
+
+def test_presentation(feedback_presentation):
+    fb = feedback_presentation
+    txt = fb.as_text()
+    html = fb.as_html()
+    tex = fb.as_latex()
+    message = 'Presentation Error'
+    assert fb.grade == 0.5
+    assert message in txt
+    assert message in html
+    assert message in tex
