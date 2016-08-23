@@ -9,14 +9,18 @@ Basic syntax
 ============
 
 A basic session of an input/output based program running on an
-online judge is specified like this::
+online judge is specified like this:
+
+.. code-block:: text
 
     Say your name: <John>
     Hello, John!
     
 In this example, the string between angle brackets is considered to be an input
 and everything else is the expected output. Different runs should be separated by 
-blank lines::
+blank lines:
+
+.. code-block:: text
 
     Say your name: <John>
     Hello, John!
@@ -37,7 +41,9 @@ Output blocks and comments
 --------------------------
 
 If the output string spans multiple lines that could include one or more blank lines,
-one should start each line with pipe character::
+one should start each line with pipe character:
+
+.. code-block:: text
 
     Say your name: <Mary>
     |Hello, Mary.
@@ -48,8 +54,9 @@ The pipe character only has effect if it starts a line. The pipe is not rigorous
 necessary in the second and fourth lines, but probably should be there for
 clarity. If the the line starts with two pipes, the first will be ignored and
 the second one will be included in the expected output. This method can be used to
-escape pipe characters and  comments::
+escape pipe characters and  comments:
 
+.. code-block:: text
 
     # This is a comment and is ignored.
     # Comments can only appear between runs and there is no concept of a inline
@@ -59,7 +66,9 @@ escape pipe characters and  comments::
 
 
 Another special behavior is triggered by the ellipsis sequence. The example
-above could be written as::
+above could be written as:
+
+.. code-block:: text
 
     Say your name: <Mary>
     Hello, Mary...Nice to meet you.
@@ -70,7 +79,9 @@ will match any output that starts with the substring "Hello, Mary" and ends
 with "Nice to meet you.". The first example expects a single newline between
 both.
 
-The ellipsis can be escaped using the "\..." sequence::
+The ellipsis can be escaped using the "\..." sequence:
+
+.. code-block:: text
 
     Quote: <John>
     War is over\... If you want it.
@@ -80,8 +91,10 @@ The parse tree
 --------------
 
 IoSpec sources are parsed using either the :func:`iospec.parse(F)` or
-:func:`iospec.parse_string(src)` functions. Both return a :cls:`iospec.IoSpec`
-instance that behaves like a sequence of test case nodes. Consider the file::
+:func:`iospec.parse_string(src)` functions. Both return a :class:`iospec.IoSpec`
+instance that behaves like a sequence of test case nodes. Consider the file:
+
+.. code-block:: text
 
     Say your name: <John>
     Hello, John!
@@ -147,7 +160,9 @@ computed input are considered illegal. This behavior simplifies the parser
 and also simplifies the creation of input files: the closing > and the dollar 
 sign do not need to be escaped inside input strings. The strings ``\$`` and
 ``\<`` are always treated as escape sequences regardless if they are present
-inside input or output strings::
+inside input or output strings:
+
+.. code-block:: text
 
     Always escape these characters in the output: \$, \<, \n and \\
     The following lines are the same:
@@ -159,7 +174,9 @@ Defining commands
 
 Sometimes you may find that the default input commands are too limited. New
 commands can be created in the IoSpec source by defining a Python function with
-a ``@command`` decorator::
+a ``@command`` decorator:
+
+.. code-block:: text
 
     @import random
     
@@ -185,7 +202,7 @@ command names to their respective implementations.
 We can also decorate a Python class with a ``@command`` decorator. In this case,
 the class must implement the two methods described bellow.
 
-::
+.. code-block:: text
 
     @command
     class beatles:
@@ -228,7 +245,9 @@ command execution.
     The solution is to use the ``@generator`` decorator to mark a python
     generator function that computes inputs in batch. These inputs can be referred
     by the identifiers $0, $1, $2, etc in a block that starts with the @generate
-    command::
+    command:
+
+    .. code-block:: text
 
         @import random
 
@@ -250,7 +269,9 @@ The IoSpec also can specify input-only runs, which are useful when a  third part
 computes the corresponding outputs from a reference program.
 There are a few basic commands that define input-only blocks. The ``@input``
 command defines a block in which each input is either separated by semicolons
-or each input corresponds to a line in an indented block bellow the command::
+or each input corresponds to a line in an indented block bellow the command:
+
+.. code-block:: text
 
     # Here we specify only the inputs of a program
     # Be careful to avoid putting spurious spaces between your inputs
@@ -267,4 +288,3 @@ or each input corresponds to a line in an indented block bellow the command::
 The inline version of this command uses ``\;`` to escape semicolons in the
 input strings. Both versions accept computed inputs and a ``@generate`` decorator
 preceding the block.
-

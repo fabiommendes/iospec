@@ -1,12 +1,13 @@
 import pytest
+
 from iospec import *
-from iospec.types import LinearNode
 from iospec.commands import Foo
+from iospec.types import LinearNode
 
 
 @pytest.fixture
 def spec1():
-     return parse_string('''foo <bar>
+    return parse_string('''foo <bar>
 barfoo
 
 ham <spam>
@@ -22,6 +23,7 @@ barfoo
 Ham<spam>
 eggs
 ''')
+
 
 def test_atom_equality():
     for cls in [In, Out]:

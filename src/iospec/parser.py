@@ -95,8 +95,8 @@ class IoSpecParser:
         elif first_line.startswith('@input'):
             return self.parse_input_block(lines)
         elif (first_line.startswith('@timeout-error') or
-              first_line.startswith('@build-error') or
-              first_line.startswith('@runtime-error')):
+                  first_line.startswith('@build-error') or
+                  first_line.startswith('@runtime-error')):
             return self.parse_error_block(lines)
         elif first_line.startswith('@'):
             idx, line = lines[0]
@@ -119,19 +119,19 @@ class IoSpecParser:
             if line.startswith('|'):
                 line = line[1:]
 
-            # Process line
-            match = output_re.match(line)
-            if match:
-                out, line = match.groups()
+            out, line = get_output_string(line)
+            if Out.is_ellipsis(out):
+                stream.append(OutEllipsis(out, fromsource=True))
+            else:
                 stream.append(Out(out, fromsource=True))
 
-            match = input_re.match(line)
+            match = INPUT_TOKEN.match(line)
             if match:
                 data = match.group(1)
                 stream.append(In(data, fromsource=True))
                 continue
 
-            match = computed_input_re.match(line)
+            match = COMPUTED_INPUT_TOKEN.match(line)
             if match:
                 name, args = match.groups()
                 stream.append(self._normalize_computed_input(name, args))
@@ -238,7 +238,7 @@ class IoSpecParser:
         for i, x in enumerate(cases):
             x = x.replace('\x00', '\\;')
             if x.startswith('$'):
-                match = computed_input_re.match(x)
+                match = COMPUTED_INPUT_TOKEN.match(x)
                 if match:
                     name, args = match.groups()
                     cases[i] = self._normalize_computed_input(name, args)
@@ -299,6 +299,48 @@ class IoSpecParser:
 #
 # Utility functions
 #
+def get_output_string(line):
+    """
+    Scan string from the beginning for an output string syntax.
+
+    Return a (out, tail) tuple where out is the Out() part of the string and
+    tail is the beginning of a Command or In block.
+    """
+
+    # Line begins with an input block
+    if line.startswith('<'):
+        return '', line
+
+    # Line may be a command. It depends on the next character being either a
+    # letter or a digit.
+    if line.startswith('$'):
+        if len(line) == 1:
+            return '$', ''
+        elif line[1].isalnum():
+            return '', line
+
+    out, sep, tail = partition_re(line, OUTPUT_TOKEN_SPLIT)
+    if sep:
+        out += sep[0]
+        sep = sep[1:]
+        return out, sep + tail
+    else:
+        return out, ''
+
+
+def partition_re(string, re):
+    """
+    Like str.partition(), but uses a regular expression.
+    """
+
+    match = re.search(string)
+    if match is None:
+        return string, '', ''
+    else:
+        i, j = match.start(), match.end()
+        return string[0:i], string[i:j], string[j:]
+
+
 def group_blocks(line_iter):
     """Groups lines of each session block together.
 
@@ -413,21 +455,26 @@ def strip_columns(data, n=4):
 
 
 #
-# Token definitions
+# Regex and token definitions
 #
-output_re = re.compile(r'''
+OUTPUT_TOKEN = re.compile(r'''
 ^(
     (?:    
-        [^<\$]*    # Match any non-$/< sequence
         (?:\\.)*   # Match any escaped characters
+        [^<\$]*    # Match any non-$/< sequence
     )*             # Perform zero or more of these matches
 )(.*)$
 ''', flags=re.VERBOSE)
 
-input_re = re.compile(r'^<(.*)>\s*$')
-computed_input_re = re.compile(r'^\$([a-zA-Z]+)(?:[(](.*)[)])?\s*$')
-enumerated_input_re = re.compile(r'^\$([0]+)\s*$')
-input_value_re = re.compile(r'''
+OUTPUT_TOKEN_SPLIT = re.compile(r'[^\\]<|[^\\]\$[a-zA-Z0-9_]')
+
+INPUT_TOKEN = re.compile(r'^<(.*)>\s*$')
+
+COMPUTED_INPUT_TOKEN = re.compile(r'^\$([a-zA-Z]+)(?:[(](.*)[)])?\s*$')
+
+ENUMERATED_INPUT_TOKEN = re.compile(r'^\$([0]+)\s*$')
+
+INPUT_VALUE_TOKEN = re.compile(r'''
 ^(
     (?:
         [^;]*

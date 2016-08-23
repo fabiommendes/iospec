@@ -1,3 +1,4 @@
+#-*- coding: utf8 -*-
 import os
 from setuptools import setup, find_packages
 
@@ -35,7 +36,7 @@ distribution = setup(
     package_dir={'': 'src'},
     packages=find_packages('src'),
     install_requires=[
-        'jinja2',
+        'jinja2>=2.7',
         'pygeneric>=0.3',
         'unidecode',
         'fake-factory'

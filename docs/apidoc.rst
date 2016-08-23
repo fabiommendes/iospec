@@ -22,3 +22,21 @@ TestCase elements
 We refer to each run of a program as a "test case". **iospec** implements many
 different test case blocks in order to adapt to different situations. Perhaps
 the most simple block is a SimpleTestCase
+
+.. autoclass:: iospec.types.TestCase
+
+.. autoclass:: iospec.types.SimpleTestCase
+
+.. autoclass:: iospec.types.InputTestCase
+
+.. autoclass:: iospec.types.ErrorTestCase
+
+
+The main AST object
+-------------------
+
+A parsed IoSpec source is converted to an IoSpec instance. They consist of
+basically a sequence of TestCase objects and the definition of a command
+context.
+
+.. autoclass:: iospec.types.IoSpec

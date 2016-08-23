@@ -1,8 +1,6 @@
 Welcome to iospec's documentation!
 ==================================
 
-Contents:
-
 .. include:: ../README.rst
 
 .. toctree::

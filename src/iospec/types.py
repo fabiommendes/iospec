@@ -1,13 +1,14 @@
 import collections
 import copy
 import pprint
+import re
 
 from generic import generic
 from unidecode import unidecode
 
 __all__ = [
     # Atomic
-    'Atom', 'Comment', 'In', 'Out', 'Command',
+    'Atom', 'Comment', 'In', 'Out', 'Command', 'OutEllipsis', 'OutRegex',
 
     # Nodes
     'IoSpec', 'TestCase', 'ErrorTestCase', 'SimpleTestCase', 'InputTestCase',
@@ -20,14 +21,13 @@ __all__ = [
 class Atom(collections.UserString):
     """Base class for all atomic elements"""
 
-    type = 'atom'
-
     escape_chars = {
         '<': '\\<',
         '$': '\\$',
+        '...': '\\...',
     }
 
-    def __init__(self, data, *, lineno=None):
+    def __init__(self, data, lineno=None):
         super().__init__(data)
         self.lineno = lineno
 
@@ -81,7 +81,7 @@ class Atom(collections.UserString):
 
     def to_json(self):
         """
-        Return a pair of [type_name, data] that can be converted to valid json.
+        Return a pair of [type, data] that can be converted to valid json.
         """
 
         return type(self).__name__, str(self)
@@ -101,6 +101,8 @@ class Atom(collections.UserString):
 class Comment(Atom):
     """Represent a raw block of comments"""
 
+    type = 'comment'
+
     def source(self):
         return self.data
 
@@ -111,7 +113,9 @@ class Comment(Atom):
 class InOrOut(Atom):
     """Common interfaces to In and Out classes"""
 
-    def __init__(self, data, *, fromsource=False, lineno=None):
+    ELLIPSIS_MATCH = re.compile(r'(?:^\.\.\.|[^\\]\.\.\.)')
+
+    def __init__(self, data, fromsource=False, lineno=None):
         if fromsource:
             data = self._un_escape(data)
         super().__init__(data, lineno=lineno)
@@ -126,17 +130,14 @@ class In(InOrOut):
         return '<%s>\n' % super().source()
 
 
-class Out(InOrOut):
-    """Plain output string"""
+class OutOrEllipsis(InOrOut):
+    @classmethod
+    def is_ellipsis(cls, data):
+        """
+        Return True if input data should correspond to an OutEllipsis object.
+        """
 
-    type = 'output'
-
-    def source(self):
-        data = super().source()
-        lines = data.split('\n')
-        if any(self._requires_line_escape(line) for line in lines):
-            data = '\n'.join(self._line_escape(line) for line in lines)
-        return data
+        return cls.ELLIPSIS_MATCH.search(data) is not None
 
     @staticmethod
     def _requires_line_escape(line):
@@ -145,6 +146,76 @@ class Out(InOrOut):
     @staticmethod
     def _line_escape(line):
         return '||' + line if line.startswith('|') else '|' + line
+
+    def source(self):
+        data = super().source()
+        lines = data.split('\n')
+        if any(self._requires_line_escape(line) for line in lines):
+            data = '\n'.join(self._line_escape(line) for line in lines)
+        return data
+
+
+class Out(OutOrEllipsis):
+    """Plain output string"""
+
+    type = 'output'
+
+
+class OutEllipsis(Out):
+    """
+    An output string with an ellipsis character.
+    """
+
+    type = 'ellipsis'
+    escape_chars = dict(Out.escape_chars)
+    escape_chars.pop('...', None)
+
+    def __init__(self, data, **kwargs):
+        super().__init__(data, **kwargs)
+        self.parts = self.ELLIPSIS_MATCH.split(self.data)
+        self.parts = tuple(part.replace('\\...', '...') for part in self.parts)
+
+    def __eq__(self, other):
+        if isinstance(other, (str, Out)):
+            data = str(other)
+            parts = list(self.parts)
+
+            # Check the beginning of the string. If we pass the stage, the rule
+            # is to match any content in the beginning of the data string.
+            if parts[0] and data.startswith(parts[0]):
+                data = data[len(parts[0]):]
+                parts.pop(0)
+            elif parts[0]:
+                return False
+
+            # Evaluate all possible matches consuming the template from the end
+            # of the string
+            while parts:
+                end = parts.pop()
+                if data.endswith(end):
+                    data = data[:-len(end)]
+                    if not parts:
+                        return True
+                    else:
+                        data, sep, tail = data.rpartition(parts[-1])
+                        if not sep:
+                            return False
+                        parts.pop()
+                else:
+                    return False
+            return True
+        return super().__eq__(other)
+
+
+class OutRegex(InOrOut):
+    """
+    A regex matcher string.
+    """
+
+    type = 'regex'
+
+    def source(self):
+        return '/%s/' % super().source()
 
 
 class Command(Atom):
@@ -162,7 +233,7 @@ class Command(Atom):
             The parsed argument string.
     """
 
-    type = 'input-command'
+    type = 'command'
 
     def __init__(self, name,
                  args=None, factory=None, parsed_args=None, lineno=None):
@@ -415,7 +486,8 @@ class IoSpec(LinearNode):
         self.definitions.extend(definitions or ())
 
     def __repr__(self):
-        return '<IoSpec: %s>' % [x.type for x in self]
+        type_name = type(self.__class__.__name__)
+        return '<%s: %s>' % (type_name, [x.type for x in self])
 
     def source(self):
         prefix = '\n\n'.join(block.strip('\n') for block in self.definitions)
@@ -535,6 +607,10 @@ class TestCase(LinearNode):
         lineno (int)
             The line number for this test case in the IoSpec source.
     """
+
+    @property
+    def type(self):
+        return self.__class__.__name__.lower()[:-8]
 
     # noinspection PyArgumentList
     def __init__(self, data=(), *, priority=None, lineno=None, **kwds):
