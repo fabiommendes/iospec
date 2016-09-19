@@ -6,6 +6,8 @@ import re
 from generic import generic
 from unidecode import unidecode
 
+from iospec.exceptions import BuildError
+
 __all__ = [
     # Atomic
     'Atom', 'Comment', 'In', 'Out', 'Command', 'OutEllipsis', 'OutRegex',
@@ -235,12 +237,10 @@ class Command(Atom):
 
     type = 'command'
 
-    def __init__(self, name,
-                 args=None, factory=None, parsed_args=None, lineno=None):
+    def __init__(self, name, args=None, factory=None, lineno=None):
         self.name = name
         self.args = args
         self.factory = factory or self.source
-        self.parsed_args = parsed_args
         super().__init__('', lineno=lineno)
 
     def __repr__(self):
@@ -847,6 +847,41 @@ class ErrorTestCase(TestCase):
     def transform_strings(self, func):
         super().transform_strings(func)
         self.error_message = func(self.error_message)
+
+    def get_error_message(self):
+        """
+        Return a friendly error message.
+        """
+
+        if self.error_type == 'timeout':
+            return 'TimeoutError: program exceeded timeout.'
+        if self.error_message:
+            return self.error_message
+        elif self.error_type == 'build':
+            return 'BuildError: could not build/compile your program.'
+        elif self.error_type == 'runtime':
+            return 'RuntimeError: error during program execution.'
+        else:
+            raise ValueError('invalid error type: %r' % self.error_type)
+
+    def get_exception(self):
+        """
+        Return an exception instance associated with the error.
+        """
+
+        if self.error_type == 'timeout':
+            return TimeoutError()
+        elif self.error_type == 'build':
+            return BuildError(self.error_message)
+        elif self.error_type == 'runtime':
+            return RuntimeError(self.error_message)
+
+    def raise_exception(self):
+        """
+        Raise exception associated with ErrorTestCase.
+        """
+
+        raise self.get_exception()
 
 
 class AttrDict(dict):

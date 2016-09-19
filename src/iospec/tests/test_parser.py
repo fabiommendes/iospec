@@ -61,7 +61,7 @@ def test_import_command():
         '@command\n'
         'def foo(arg):'
         '    return math.sqrt(choice([1]))')
-    assert tree.commands.foo.generate('') == 1
+    assert tree.commands.foo.generate() == 1
 
 
 def test_use_command():

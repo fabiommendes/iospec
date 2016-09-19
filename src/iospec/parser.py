@@ -2,7 +2,7 @@ import re
 from collections import deque
 
 from iospec import *
-from iospec.commands import COMMANDS, wrapped_command
+from iospec.commands import COMMANDS_NAMESPACE, wrapped_command
 from iospec.types import CommentDeque
 
 __all__ = ['parse', 'parse_string', 'IoSpecSyntaxError']
@@ -42,7 +42,7 @@ class IoSpecParser:
         # Prepare global context
         self.source = source
         self.extra_commands = dict(commands or {})
-        self.commands = COMMANDS.copy()
+        self.commands = COMMANDS_NAMESPACE.copy()
         self.commands.update(self.extra_commands)
         self.namespace = {}
 
@@ -87,7 +87,7 @@ class IoSpecParser:
 
         # Block-start flags
         if first_line.startswith('@command'):
-            return self.parse_input_command(lines)
+            return self.parse_command_definition(lines)
         elif first_line.startswith('@import') or first_line.startswith('@from'):
             return self.parse_import(lines)
         elif first_line.startswith('@plain'):
@@ -144,7 +144,7 @@ class IoSpecParser:
 
         return SimpleTestCase(stream, comment=lines.comment)
 
-    def parse_input_command(self, lines):
+    def parse_command_definition(self, lines):
         idx, line = lines.popleft()
         if line.strip() != '@command':
             raise IoSpecSyntaxError(
@@ -290,10 +290,9 @@ class IoSpecParser:
         )
 
     def _normalize_computed_input(self, name, args):
-        obj = self.commands[name]
-        parsed_args = obj.parse(args)
-        return Command(name, args, parsed_args=parsed_args,
-                       factory=lambda: obj.generate(parsed_args))
+        cls = self.commands[name]
+        obj = cls.from_arguments(args)
+        return Command(name, args, factory=obj.generate)
 
 
 #

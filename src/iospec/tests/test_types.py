@@ -1,7 +1,7 @@
 import pytest
 
 from iospec import *
-from iospec.commands import Foo
+from iospec.commands.all import Foo
 from iospec.types import LinearNode
 
 
