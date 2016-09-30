@@ -1,3 +1,4 @@
+from .errors import *
 from .types import *
-from .parser import *
-from .__version__ import __version__
+from .parser import parse, IoSpecParser
+from .__meta__ import __version__, __author__

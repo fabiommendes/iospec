@@ -2,16 +2,17 @@ import io
 
 import pytest
 
-from iospec import parse, parse_string, IoSpecSyntaxError, Out, In, OutEllipsis
+from iospec import parse, Out, In, OutEllipsis
+from iospec.errors import IoSpecSyntaxError
 
 
 def test_open_file():
     src = 'foo<bar>'
-    assert parse(io.StringIO(src)) == parse_string(src)
+    assert parse(io.StringIO(src)) == parse(src)
 
 
 def test_simple_io():
-    tree = parse_string('foo<bar>\nfoobar')
+    tree = parse('foo<bar>\nfoobar')
     case = tree[0]
     assert case[0] == Out('foo')
     assert case[1] == In('bar')
@@ -19,7 +20,7 @@ def test_simple_io():
 
 
 def test_simple_ellipsis():
-    tree = parse_string('foo<bar>\nfoo...bar')
+    tree = parse('foo<bar>\nfoo...bar')
     case = tree[0]
     assert case[0] == Out('foo')
     assert case[1] == In('bar')
@@ -30,11 +31,11 @@ def test_simple_ellipsis():
 
 def test_broken_io():
     with pytest.raises(IoSpecSyntaxError):
-        parse_string('foo<bar\nfoobar')
+        parse('foo<bar\nfoobar')
 
 
 def test_multiline_with_pipes():
-    tree = parse_string(
+    tree = parse(
         '|foo\n'
         '|\n'
         '|bar'
@@ -45,7 +46,7 @@ def test_multiline_with_pipes():
 
 
 def test_computed_input():
-    tree = parse_string('foo$name(10)')
+    tree = parse('foo$name(10)')
     session = tree[0]
     assert len(session) == 2
     assert session[0].type == 'output'
@@ -55,7 +56,7 @@ def test_computed_input():
 
 
 def test_import_command():
-    tree = parse_string(
+    tree = parse(
         '@import math\n'
         '@from random import choice\n'
         '@command\n'
@@ -65,7 +66,7 @@ def test_import_command():
 
 
 def test_use_command():
-    tree = parse_string('''
+    tree = parse('''
 @command
 def foo(arg):
      return 'computed value'
@@ -78,16 +79,16 @@ foo: $foo
 
 
 def test_hanging_dollar_sign():
-    testcase = parse_string(r'U$ 10.00')[0]
+    testcase = parse(r'U$ 10.00')[0]
     assert len(testcase) == 1
     assert testcase[0] == Out('U$ 10.00')
 
 
 def test_escaped_dollar_sign():
-    testcase = parse_string(r'foo\$bar')[0]
+    testcase = parse(r'foo\$bar')[0]
     assert testcase[0] == Out('foo$bar')
 
 
 def test_escaped_lt_sign():
-    testcase = parse_string(r'foo\<bar')[0]
+    testcase = parse(r'foo\<bar')[0]
     assert testcase[0] == Out('foo<bar')

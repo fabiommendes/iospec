@@ -1,5 +1,5 @@
 import pytest
-from iospec import parse_string as ioparse
+from iospec import parse as ioparse
 from iospec import feedback
 
 

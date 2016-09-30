@@ -4,7 +4,7 @@ import jinja2
 from generic import generic
 
 from iospec.types import TestCase, SimpleTestCase, ErrorTestCase, IoSpec
-from iospec.util import tex_escape
+from iospec.utils import tex_escape
 
 # Module constants
 error_titles = {

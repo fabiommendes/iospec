@@ -47,3 +47,16 @@ def tex_escape(value):
     for pattern, replacement in latex_subs:
         new = pattern.sub(replacement, new)
     return new
+
+
+def partition_re(string, re):
+    """
+    Like str.partition(), but uses a regular expression to split contents.
+    """
+
+    match = re.search(string)
+    if match is None:
+        return string, '', ''
+    else:
+        i, j = match.start(), match.end()
+        return string[0:i], string[i:j], string[j:]

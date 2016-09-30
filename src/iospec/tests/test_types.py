@@ -7,7 +7,7 @@ from iospec.types import LinearNode
 
 @pytest.fixture
 def spec1():
-    return parse_string('''foo <bar>
+    return parse('''foo <bar>
 barfoo
 
 ham <spam>
@@ -17,7 +17,7 @@ eggs
 
 @pytest.fixture
 def spec2():
-    return parse_string('''Foo<bar>
+    return parse('''Foo<bar>
 barfoo
 
 Ham<spam>
@@ -39,7 +39,7 @@ def test_node_equality():
 
 
 def test_expand_inputs():
-    tree = parse_string("""
+    tree = parse("""
 @command
 def foo(*args):
     return 'bar'
@@ -51,7 +51,7 @@ foo: $foo
 
 
 def test_expand_and_create_inputs():
-    tree = parse_string("""foo: <bar>
+    tree = parse("""foo: <bar>
 
     foo: $foo
 

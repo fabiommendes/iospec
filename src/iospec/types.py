@@ -7,6 +7,7 @@ from generic import generic
 from unidecode import unidecode
 
 from iospec.exceptions import BuildError
+from iospec.utils import indent
 
 __all__ = [
     # Atomic
@@ -600,11 +601,11 @@ class TestCase(LinearNode):
     Base class for all test cases.
 
     Args:
-        data
+        data:
             A sequence of In, Out and Command strings.
-        priority (float)
+        priority (float):
             Relative priority of this test case for input expansion.
-        lineno (int)
+        lineno (int):
             The line number for this test case in the IoSpec source.
     """
 
@@ -656,7 +657,9 @@ class TestCase(LinearNode):
         return [str(x) for x in self if isinstance(x, In)]
 
     def expand_inputs(self):
-        """Expand all computed input nodes *inplace*."""
+        """
+        Expand all computed input nodes *inplace*.
+        """
 
         for idx, atom in enumerate(self):
             if isinstance(atom, Command):
@@ -709,7 +712,9 @@ class TestCase(LinearNode):
 
 
 class SimpleTestCase(TestCase):
-    """Regular input/output test case."""
+    """
+    Regular input/output test case.
+    """
 
 
 class InputTestCase(TestCase):
@@ -805,8 +810,8 @@ class ErrorTestCase(TestCase):
     """
 
     build = _error_test_case_constructor_factory('build')
-    runtime = _error_test_case_constructor_factory('runtime')
     timeout = _error_test_case_constructor_factory('timeout')
+    runtime = _error_test_case_constructor_factory('runtime')
 
     def __init__(self, data=(), *,
                  error_message='', error_type='runtime', **kwds):
@@ -824,29 +829,56 @@ class ErrorTestCase(TestCase):
                              'message.')
 
     def source(self):
-        if not self._data and not self.error_message:
-            return '@%s-error\n    # Empty block' % self.error_type
+        if self.error_type == 'build':
+            return self._source_build()
+        elif self.error_type == 'timeout':
+            return self._source_timeout()
+        elif self.error_type == 'runtime':
+            return self._source_runtime()
+        raise RuntimeError
 
-        comment, self.comment = self.comment, ''
-        try:
-            body = super().source()
-        finally:
-            self.comment = comment
+    def _source_build(self):
+        msg = self.error_message
+        return self._with_comment('@build-error\n' + indent(msg, 4))
 
-        body = '\n'.join('    ' + line for line in body.splitlines())
-        if self.error_message:
-            lines = self.error_message.splitlines()
-            error_msg = '\n'.join('    ' + line for line in lines)
-            error_msg = '\n\n    @error\n' + error_msg
+    def _source_timeout(self):
+        if len(self) == 0:
+            return self._with_comment('@timeout-error\n')
         else:
-            error_msg = ''
+            case = self.get_test_case()
+            source = case.source()
+            return self._with_comment('@timeout-error\n' + indent(source, 4))
 
-        source = '@%s-error\n%s%s' % (self.error_type, body, error_msg)
-        return self._with_comment(source)
+    def _source_runtime(self):
+        error_msg = self.error_message
+        error_msg = indent(error_msg, 4)
+        if len(self) == 0:
+            return self._with_comment('@timeout-error\n@error\n' + error_msg)
+
+        else:
+            case = self.get_test_case()
+            source = case.source()
+            data = '@runtime-error\n' + indent(source, 4)
+            if self.error_message:
+                data += '\n\n@error\n' + error_msg
+            return self._with_comment(data)
 
     def transform_strings(self, func):
         super().transform_strings(func)
         self.error_message = func(self.error_message)
+
+    def get_test_case(self):
+        """
+        Return a SimpleTestCase() instance with the same data in the test case
+        section of the error.
+
+        Build errors do not have an test case section and raise a ValueError.
+        """
+
+        if self.error_type == 'build':
+            raise ValueError('build errors have no test case section')
+
+        return TestCase(list(self))
 
     def get_error_message(self):
         """
@@ -858,7 +890,7 @@ class ErrorTestCase(TestCase):
         if self.error_message:
             return self.error_message
         elif self.error_type == 'build':
-            return 'BuildError: could not build/compile your program.'
+            return 'BuildError: could not build/compile program.'
         elif self.error_type == 'runtime':
             return 'RuntimeError: error during program execution.'
         else:

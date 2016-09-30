@@ -3,44 +3,39 @@ from collections import deque
 
 from iospec import *
 from iospec.commands import COMMANDS_NAMESPACE, wrapped_command
+from iospec.errors import IoSpecSyntaxError
 from iospec.types import CommentDeque
-
-__all__ = ['parse', 'parse_string', 'IoSpecSyntaxError']
+from iospec.utils import partition_re
 
 
 def parse(file, commands=None):
-    """Parse the content of file.
-
-    This function accepts file-like objects and a string with a path.
-    
-    Returns the parsing tree as a dictionary-like structure.
     """
-    if isinstance(file, str):
-        with open(file) as F:
-            data = F.read()
-        return parse_string(data)
-    return parse_string(file.read(), commands=commands)
+    Parse the content of string or file object.
 
+    Returns the parse tree as a :class:`iospec.IoSpec` instance.
+    """
 
-def parse_string(text, commands=None):
-    """Parse a string of iospec data."""
+    try:
+        text = file.read()
+    except AttributeError:
+        text = file
 
-    parser_job = IoSpecParser(text, commands=commands)
-    return parser_job.parse()
-
-
-class IoSpecSyntaxError(Exception):
-    """Raised for errors in iospec syntax."""
+    parser = IoSpecParser(text, commands=commands)
+    return parser.parse()
 
 
 class IoSpecParser:
     """
-    A parsing job that parses a single IoSpec source.
+    Parser for a single IoSpec source.
+
+    Usage:
+        >>> parser = IoSpecParser(src)                          # doctest: +SKIP
+        >>> ast = parser.parser()
     """
 
     def __init__(self, source, commands=None):
         # Prepare global context
-        self.source = source
+        self.source = source.strip()
         self.extra_commands = dict(commands or {})
         self.commands = COMMANDS_NAMESPACE.copy()
         self.commands.update(self.extra_commands)
@@ -61,9 +56,6 @@ class IoSpecParser:
 
         self.definitions.append(definition)
 
-    #
-    # Parsing functions
-    #
     def parse(self):
         """Compute and return the parse tree"""
 
@@ -81,7 +73,9 @@ class IoSpecParser:
         return self.ast
 
     def parse_group(self, lines):
-        """Parse all lines in group and return the parsed tree."""
+        """
+        Parse all lines in group and return the parsed node.
+        """
 
         first_line = lines[0][1]
 
@@ -94,20 +88,25 @@ class IoSpecParser:
             return self.parse_plain_input(lines)
         elif first_line.startswith('@input'):
             return self.parse_input_block(lines)
-        elif (first_line.startswith('@timeout-error') or
-                  first_line.startswith('@build-error') or
-                  first_line.startswith('@runtime-error')):
-            return self.parse_error_block(lines)
+        elif first_line.startswith('@build-error'):
+            return self.parse_build_error(lines)
+        elif first_line.startswith('@timeout-error'):
+            return self.parse_timeout_error(lines)
+        elif first_line.startswith('@runtime-error'):
+            return self.parse_runtime_error(lines)
+        elif first_line.startswith('@error'):
+            return self.parse_raw_error_block(lines)
         elif first_line.startswith('@'):
             idx, line = lines[0]
-            raise IoSpecSyntaxError(
-                'invalid command at line %s: %s' % (idx, line)
-            )
+            msg = 'invalid command at line %s: %s' % (idx, line)
+            raise IoSpecSyntaxError(msg)
         else:
             return self.parse_regular_block(lines)
 
     def parse_regular_block(self, lines):
-        """Make a stream of regular input/output/command strings."""
+        """
+        Make a stream of regular input/output/command strings.
+        """
 
         stream = []
 
@@ -253,41 +252,79 @@ class IoSpecParser:
             comment=lines.comment,
         )
 
-    def parse_error_block(self, lines):
+    def parse_build_error(self, lines):
         lineno, line = lines.popleft()
-        error_types = ('@timeout-error', '@runtime-error', '@build-error')
-
-        if line.strip() not in error_types:
+        if line.strip() != '@build-error':
             raise IoSpecSyntaxError(lineno)
-        error_type = line.strip()[1:-6]
 
+        # Send lines and consume as an indented block
         self.groups.send(lines)
         data = consume_indented_code_block(self.groups)
-        data = strip_columns(data)
-        body_lines = data.splitlines()
-
-        if any(line.startswith('@error') for line in body_lines):
-            for i, line in enumerate(lines):
-                if line.startswith('@error'):
-                    if line.strip() != '@error':
-                        raise IoSpecSyntaxError(line)
-                    body_lines = lines[:i]
-                    error = '\n'.join(lines[i + 1:])
-                    break
-            else:
-                raise RuntimeError
-        else:
-            error = ''
-
-        body_lines = CommentDeque(enumerate(body_lines, lineno + 1))
-        cases = self.parse_regular_block(body_lines)
-        return ErrorTestCase(
-            list(cases),
-            error_type=error_type,
-            error_message=error,
+        data = strip_columns(data, 4)
+        return ErrorTestCase.build(
+            error_message=data,
             lineno=lineno,
             comment=lines.comment,
         )
+
+    def parse_timeout_error(self, lines):
+        lineno, line = lines.popleft()
+        if line.strip() != '@timeout-error':
+            raise IoSpecSyntaxError(lineno)
+
+        # Send lines and consume as an indented block
+        self.groups.send(lines)
+        data = consume_indented_code_block(self.groups)
+        data = strip_columns(data)
+
+        # Timeout error treats the block of data as a regular IO session
+        body_lines = data.splitlines()
+        body_lines = CommentDeque(enumerate(body_lines, lineno + 1))
+        cases = self.parse_regular_block(body_lines)
+
+        return ErrorTestCase.timeout(
+            cases,
+            lineno=lineno,
+            comment=lines.comment,
+        )
+
+    def parse_runtime_error(self, lines):
+        lineno, line = lines.popleft()
+        if line.strip() != '@runtime-error':
+            raise IoSpecSyntaxError(lineno)
+
+        # Send lines and consume as an indented block
+        self.groups.send(lines)
+        data = consume_indented_code_block(self.groups)
+        data = strip_columns(data, 4)
+
+        # Runtime error treats the block of data as a regular IO session
+        body_lines = data.splitlines()
+        body_lines = CommentDeque(enumerate(body_lines, lineno + 1))
+        cases = self.parse_regular_block(body_lines)
+
+        return ErrorTestCase.runtime(
+            cases,
+            lineno=lineno,
+            comment=lines.comment,
+        )
+
+    def parse_raw_error_block(self, lines):
+        lineno, line = lines.popleft()
+        if line.strip() != '@error':
+            raise IoSpecSyntaxError(lineno)
+        self.groups.send(lines)
+
+        last_block = self.ast[-1]
+        if (isinstance(last_block,
+                       ErrorTestCase) and last_block.error_type == 'runtime'):
+            data = consume_indented_code_block(self.groups)
+            last_block.error_message = strip_columns(data, 4)
+            return None
+        else:
+            block_type = type(last_block).__name__
+            msg = 'Unexpected @error command after an %s block' % block_type
+            raise IoSpecSyntaxError(msg)
 
     def _normalize_computed_input(self, name, args):
         cls = self.commands[name]
@@ -300,7 +337,7 @@ class IoSpecParser:
 #
 def get_output_string(line):
     """
-    Scan string from the beginning for an output string syntax.
+    Scan string from the beginning assuming we are in an output block.
 
     Return a (out, tail) tuple where out is the Out() part of the string and
     tail is the beginning of a Command or In block.
@@ -327,24 +364,13 @@ def get_output_string(line):
         return out, ''
 
 
-def partition_re(string, re):
-    """
-    Like str.partition(), but uses a regular expression.
-    """
-
-    match = re.search(string)
-    if match is None:
-        return string, '', ''
-    else:
-        i, j = match.start(), match.end()
-        return string[0:i], string[i:j], string[j:]
-
-
 def group_blocks(line_iter):
-    """Groups lines of each session block together.
+    """
+    Groups lines of each session block together.
 
     The input is a list of (line_index, line) pairs. Return an iterator over a
-    list of lines in each group."""
+    list of lines in each group.
+    """
 
     session = CommentDeque()
     lines = deque(line_iter)
@@ -379,8 +405,10 @@ def group_blocks(line_iter):
 
 
 def consume_python_code_block(groups):
-    """Return a node that collects the source code for a python class or
-    function definition. Return a string of source code"""
+    """
+    Return a node that collects the source code for a python class or
+    function definition. Return a string of source code.
+    """
 
     lines = next(groups)
     lineno, line = lines.popleft()
@@ -403,7 +431,9 @@ def consume_python_code_block(groups):
 
 
 def consume_indented_code_block(groups):
-    """Consume all indented lines in groups and return the source string."""
+    """
+    Consume all indented lines in groups and return the source string.
+    """
 
     source = []
     lines = CommentDeque()

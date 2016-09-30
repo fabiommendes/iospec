@@ -2,19 +2,45 @@
 API documentation
 =================
 
-The main entry points to the iospec package are the functions
-:func:`iospec.parse` and :func:`iospec.parse_string` functions. Both return a
-parse tree structure that consists of an hierarchy of lists and dictionary-like
-elements.
+The main entry points to the iospec package is the function
+:func:`iospec.parse`. it returns a :class:`iospec.IoSpec` parse tree.
 
 **Reference**
 
 .. autofunction:: iospec.parse
-.. autofunction:: iospec.parse_string
 
 
 The IoSpec parse tree
 =====================
+
+The result of :func:`iospec.parse` is a :class:`iospec.IoSpec` instance that
+behaves mostly like a sequence of test case nodes. Consider the string
+of iospec data:
+
+.. code-block:: python
+
+    data = """
+    Say your name: <John>
+    Hello, John!
+    """
+
+The contents can be parsed as:
+
+.. code-block:: python
+
+    from iospec import parse
+    tree = parse(data)
+    case = tree[0]
+
+Each test case is a sequence of In/Out strings:
+
+>>> list(case)
+[Out('Say your name: '), In('John'), Out('Hello, John!')]
+
+The main AST object
+-------------------
+
+.. autoclass:: iospec.types.IoSpec
 
 TestCase elements
 -----------------
@@ -23,20 +49,10 @@ We refer to each run of a program as a "test case". **iospec** implements many
 different test case blocks in order to adapt to different situations. Perhaps
 the most simple block is a SimpleTestCase
 
-.. autoclass:: iospec.types.TestCase
-
 .. autoclass:: iospec.types.SimpleTestCase
 
 .. autoclass:: iospec.types.InputTestCase
 
 .. autoclass:: iospec.types.ErrorTestCase
 
-
-The main AST object
--------------------
-
-A parsed IoSpec source is converted to an IoSpec instance. They consist of
-basically a sequence of TestCase objects and the definition of a command
-context.
-
-.. autoclass:: iospec.types.IoSpec
+.. autoclass:: iospec.types.TestCase
