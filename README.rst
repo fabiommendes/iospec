@@ -1,3 +1,9 @@
+.. image:: https://travis-ci.org/fabiommendes/iospec.svg?branch=master
+    :target: https://travis-ci.org/fabiommendes/iospec
+
+.. image:: https://coveralls.io/repos/github/fabiommendes/iospec/badge.svg?branch=master
+    :target: https://coveralls.io/github/fabiommendes/iospec?branch=master
+
 The IoSpec format is a lightweight markup for specifying the expected inputs and
 outputs for running a program in an online judge setting. It is designed to be
 unobtrusive in the simple cases, while still having some some advanced
