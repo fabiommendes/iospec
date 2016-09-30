@@ -87,7 +87,7 @@ class Atom(collections.UserString):
         Return a pair of [type, data] that can be converted to valid json.
         """
 
-        return type(self).__name__, str(self)
+        return [type(self).__name__, str(self)]
 
     @classmethod
     def from_json(cls, data):
@@ -615,9 +615,13 @@ class TestCase(LinearNode):
 
     # noinspection PyArgumentList
     def __init__(self, data=(), *, priority=None, lineno=None, **kwds):
+        if self.__class__ is TestCase:
+            raise TypeError('cannot instantiate abstract TestCase instance')
+
         super().__init__(data, **kwds)
         self._priority = priority
         self.lineno = lineno
+
 
     @property
     def priority(self):
@@ -701,8 +705,8 @@ class TestCase(LinearNode):
         elif type_name == 'error':
             result = ErrorTestCase(
                 atoms,
-                error_message=json.get('error_message', ''),
-                error_type=json.get('error_type', 'runtime'),
+                error_message=json.pop('error_message', ''),
+                error_type=json.pop('error_type', 'runtime'),
             )
         else:
             raise ValueError('invalid type: %r' % type_name)
@@ -758,7 +762,20 @@ class InputTestCase(TestCase):
                 raise ValueError('invalid input object: %r' % x)
         return out
 
+    def to_json(self):
+        data = []
+        for st in self:
+            try:
+                data.append(st.to_json())
+            except AttributeError:
+                data.append(['In', st])
 
+        return {'type': 'input', 'data': data}
+
+
+#
+# Factory function for the ErrorTestCase.{build, runtime, timeout} functions
+#
 def _error_test_case_constructor_factory(tt):
     def method(cls, data=(), **kwds):
         if not kwds.get('error_type', tt):
@@ -828,6 +845,13 @@ class ErrorTestCase(TestCase):
             raise ValueError('timeout errors do not have an associated error '
                              'message.')
 
+    def to_json(self):
+        json = super().to_json()
+        json['error_type'] = self.error_type
+        if self.error_message:
+            json['error_message'] = self.error_message
+        return json
+
     def source(self):
         if self.error_type == 'build':
             return self._source_build()
@@ -878,7 +902,7 @@ class ErrorTestCase(TestCase):
         if self.error_type == 'build':
             raise ValueError('build errors have no test case section')
 
-        return TestCase(list(self))
+        return SimpleTestCase(list(self))
 
     def get_error_message(self):
         """
