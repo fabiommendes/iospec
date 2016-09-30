@@ -1,6 +1,6 @@
 import pytest
 
-from iospec import *
+from iospec import IoSpec, In, Out, parse, normalize, isequal
 from iospec.commands.all import Foo
 from iospec.types import LinearNode
 

@@ -60,6 +60,8 @@ setup(
             'python-boilerplate',
             'invoke>=0.13',
             'pytest',
+            'pytest_cov',
+            'manuel',
         ],
     },
 
