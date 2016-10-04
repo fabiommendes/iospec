@@ -3,7 +3,7 @@ import decimal
 import jinja2
 from generic import generic
 
-from iospec.types import TestCase, SimpleTestCase, ErrorTestCase, IoSpec
+from iospec.datatypes import TestCase, SimpleTestCase, ErrorTestCase, IoSpec
 from iospec.utils import tex_escape
 
 # Module constants

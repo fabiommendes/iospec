@@ -4,89 +4,7 @@ from numbers import Number
 import pytest
 
 import iospec
-from iospec import IoSpec, In, Out, parse, normalize, isequal
-from iospec.commands.all import Foo
-from iospec.types import LinearNode
-
-
-@pytest.fixture
-def spec1():
-    return parse('''foo <bar>
-barfoo
-
-ham <spam>
-eggs
-''')
-
-
-@pytest.fixture
-def spec2():
-    return parse('''Foo<bar>
-barfoo
-
-Ham<spam>
-eggs
-''')
-
-
-class TestAtom:
-    def test_equality(self):
-        for cls in [In, Out]:
-            assert cls('foo') == cls('foo')
-            assert cls('foo') == 'foo'
-            assert cls('foo') != cls('bar')
-        assert In('foo') != Out('foo')
-
-
-def test_node_equality():
-    assert LinearNode([In('foo')]) == LinearNode([In('foo')])
-    assert IoSpec() == IoSpec()
-
-
-class TestExpansion:
-    def test_expand_inputs(self):
-        tree = parse(
-            '@command\n'
-            'def foo(*args):\n'
-            '   return "bar"\n'
-            '\n'
-            'foo: $foo'
-        )
-        tree.expand_inputs()
-        assert tree[0][1] == 'bar'
-
-    def test_expand_and_create_inputs(self):
-        tree = parse('\n\n'.join([
-            'foo: <bar>',
-            'foo: $foo',
-            'foo: $foo(2)'
-        ]), commands={'foo': Foo()})
-
-        tree.expand_inputs(5)
-        assert len(tree) == 5
-        assert tree[0, 1] == 'bar'
-        assert tree[1, 1] == 'foo'
-        assert tree[2, 1] == 'foo'
-        assert tree[3, 1] == 'foofoo'
-        assert tree[4, 1] == 'foofoo'
-
-    def test_io_transform(self, spec1):
-        spec1.transform_strings(lambda x: x.title())
-        assert spec1[0].source() == 'Foo <Bar>\nBarfoo'
-
-    def test_normalize(self, spec2):
-        x = normalize(spec2, presentation=True)
-        assert x.source() == 'foo<bar>\nbarfoo\n\nham<spam>\neggs'
-
-
-class TestIsEqualFunction:
-    def test_io_equal(self, spec1, spec2):
-        assert isequal(spec1, spec1)
-        assert isequal(spec2, spec2)
-        assert not isequal(spec1, spec2)
-
-    def test_io_equal_presentation(self, spec1, spec2):
-        assert isequal(spec1, spec2, presentation=True)
+from iospec import SimpleTestCase, In, Out
 
 
 class AbstractTestCase:
@@ -94,6 +12,7 @@ class AbstractTestCase:
     base_args = ()
     base_type = None
     base_json = {}
+    base_inputs = None
 
     @pytest.fixture
     def cls(self):
@@ -102,6 +21,10 @@ class AbstractTestCase:
     @pytest.fixture
     def obj(self):
         return self.base_cls(*self.base_args)
+
+    @pytest.fixture
+    def inputs(self):
+        return self.base_inputs
 
     def test_has_type(self, obj):
         assert obj.type == self.base_type
@@ -125,6 +48,9 @@ class AbstractTestCase:
     def test_object_is_error(self, obj):
         assert not obj.is_error
 
+    #
+    # JSON representation
+    #
     def test_object_has_valid_json_representation(self, obj):
         json_data = obj.to_json()
 
@@ -139,6 +65,10 @@ class AbstractTestCase:
         assert json == new.to_json()
         assert new == obj
 
+    def test_object_creates_list_of_inputs(self, obj, inputs):
+        input_list = obj.inputs()
+        assert input_list == inputs
+
     def assert_valid_json(self, data):
         dump = json.dumps(data)
         reconstructed = json.loads(dump)
@@ -150,6 +80,7 @@ class TestSimpleTestCase(AbstractTestCase):
     base_args = ([Out('foo'), In('bar')],)
     base_type = 'simple'
     base_json = {'type': 'simple', 'data': [['Out', 'foo'], ['In', 'bar']]}
+    base_inputs = ['bar']
 
     def test_object_is_simple(self, obj):
         assert obj.is_simple
@@ -163,6 +94,7 @@ class TestInputTestCase(AbstractTestCase):
     base_args = (['foo', 'bar'],)
     base_type = 'input'
     base_json = {'type': 'input', 'data': [['In', 'foo'], ['In', 'bar']]}
+    base_inputs = ['foo', 'bar']
 
     def test_object_is_input(self, obj):
         assert obj.is_input
@@ -171,6 +103,7 @@ class TestInputTestCase(AbstractTestCase):
 class TestErrorTestCase(AbstractTestCase):
     base_cls = iospec.ErrorTestCase
     base_args = TestSimpleTestCase.base_args
+    base_inputs = TestSimpleTestCase.base_inputs
     base_type = 'error'
     base_json = dict(TestSimpleTestCase.base_json,
                      type='error', error_type='runtime', error_message='error')
@@ -194,3 +127,50 @@ class TestErrorTestCase(AbstractTestCase):
 
     def test_object_is_error(self, obj):
         assert obj.is_error
+
+    def test_error_get_error_info(self, obj):
+        ex1 = obj.get_exception()
+        ex2 = RuntimeError('error')
+        assert ex1.args == ex2.args
+        assert type(ex1) is type(ex2)
+        assert obj.get_error_message() == 'error'
+
+    def test_raise_exception(self, obj):
+        with pytest.raises(RuntimeError):
+            obj.raise_exception()
+
+
+#
+# Generic tests that are not bound to specific test case types
+#
+class TestExamples:
+    def test_normalize_consecutive_outputs(self):
+        tc = SimpleTestCase([Out('foo'), Out('bar'), In('baz'), Out('eggs')])
+        tc.normalize()
+        assert list(tc) == [Out('foo\nbar'), In('baz'), Out('eggs')]
+
+    def test_normalize_alternate_in_out_strings(self):
+        tc = SimpleTestCase([Out('bar'), In('baz'), In('zaz'), Out('eggs')])
+        tc.normalize()
+        assert list(tc) == [Out('bar'), In('baz'), Out(''), In('zaz'),
+                            Out('eggs')]
+
+    def test_normalize_start_with_out_string(self):
+        tc = SimpleTestCase([In('bar'), In('baz'), Out('eggs')])
+        tc.normalize()
+        assert list(tc) == [Out(''), In('bar'), Out(''), In('baz'), Out('eggs')]
+
+    def test_remove_trailing_spaces(self):
+        tc = SimpleTestCase([Out('bar '), In('baz'), Out('eggs \nbaz\n')])
+        tc.normalize()
+        assert list(tc) == [Out('bar '), In('baz'), Out('eggs\nbaz')]
+
+    def test_normalize_iospec(self):
+        src = '<bar>\n<baz>\nfoobar\n\nfoo <bar>\nfoobar'
+        ast = iospec.parse(src)
+        ast2 = iospec.parse(src)
+        ast.normalize()
+        case1, case2 = ast
+        assert list(case1) == [Out(''), In('bar'), Out(''), In('baz'),
+                               Out('foobar')]
+        assert case2 == ast2[1]

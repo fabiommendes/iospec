@@ -4,7 +4,7 @@ from collections import deque
 from iospec import *
 from iospec.commands import COMMANDS_NAMESPACE, wrapped_command
 from iospec.errors import IoSpecSyntaxError
-from iospec.types import CommentDeque
+from iospec.datatypes import CommentDeque
 from iospec.utils import partition_re
 
 

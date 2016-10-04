@@ -1,0 +1,14 @@
+[
+  {
+    "type": "simple",
+    "data": [
+      ["Out", ""],
+      ["In", "foo"],
+      ["Out", ""],
+      ["In", "bar"],
+      ["Out", ""],
+      ["In", "baz"],
+      ["Out", "foo bar baz"]
+    ]
+  }
+]
