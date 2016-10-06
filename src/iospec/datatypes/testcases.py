@@ -1,6 +1,6 @@
 from iospec.datatypes import Command, In, Out, Atom, OutEllipsis
 from iospec.datatypes.node import Node
-from iospec.datatypes.utils import normalize, isequal
+from iospec.datatypes.utils import isequal
 from iospec.exceptions import BuildError
 from iospec.utils import indent
 
@@ -21,15 +21,6 @@ class TestCase(Node):
     @property
     def type(self):
         return self.__class__.__name__.lower()[:-8]
-
-    # noinspection PyArgumentList
-    def __init__(self, data=(), *, priority=None, lineno=None, **kwds):
-        if self.__class__ is TestCase:
-            raise TypeError('cannot instantiate abstract TestCase instance')
-
-        super().__init__(data, **kwds)
-        self._priority = priority
-        self.lineno = lineno
 
     @property
     def priority(self):
@@ -82,16 +73,34 @@ class TestCase(Node):
             raise ValueError('invalid parameter: %s=%r' % json.popitem())
         return result
 
+    def __init__(self, data=(), *, priority=None, lineno=None, **kwds):
+        if self.__class__ is TestCase:
+            raise TypeError('cannot instantiate abstract TestCase instance')
+
+        super().__init__(data, **kwds)
+        self._priority = priority
+        self.lineno = lineno
+
     def inputs(self):
         """
         Return a list of inputs for the test case.
         """
 
-        return [str(x) for x in self if isinstance(x, In)]
+        values = []
+        for x in self:
+            if isinstance(x, In):
+                values.append(str(x))
+            elif isinstance(x, Command):
+                values.append(x.generate())
+            elif getattr(x, 'is_output', False):
+                pass
+            else:
+                raise ValueError('invalid input object: %r' % x)
+        return values
 
     def expand_inputs(self):
         """
-        Expand all computed input nodes *inplace*.
+        Expand all computed input nodes *INPLACE*.
         """
 
         for idx, atom in enumerate(self):
@@ -113,16 +122,14 @@ class TestCase(Node):
             else:
                 idx += 1
 
+    def source(self):
+        data = ''.join(x.source() for x in self if x != Out(''))
+        return self._with_comment(data)
+
     def transform_strings(self, func):
         for i, atom in enumerate(self):
-            if isinstance(atom, (In, Out)):
+            if isinstance(atom, (In, Out, OutEllipsis)):
                 self[i] = atom.transform(func)
-
-    def _to_json(self):
-
-
-        return {'type': self.__class__.__name__.lower()[:-8],
-                'data': [x.to_json() for x in self]}
 
     def _join_out_strings(self):
         self.fuse_outputs()
@@ -156,7 +163,7 @@ class TestCase(Node):
                     self[idx] = type(atom)(new)
 
         # Last output string cannot have a trailing space
-        if isinstance(self[-1], (Out, OutEllipsis)):
+        if len(self) and isinstance(self[-1], (Out, OutEllipsis)):
             atom = self[-1]
             data = str(atom)
             if data != data.rstrip():
@@ -182,12 +189,18 @@ class InputTestCase(TestCase):
     It is created by the @input and @plain decorators of the IoSpec language.
     """
 
-    def __init__(self, data=(), *, inline=True, **kwds):
-        super().__init__(data, **kwds)
+    def __init__(self, data=(), *, inline=True, **kwargs):
+        plain = kwargs.pop('plain', None)
+        super().__init__(data, **kwargs)
         self.inline = inline
 
+        if plain is None:
+            self.plain = all(isinstance(x, In) for x in self)
+        else:
+            self.plain = bool(plain)
+
     def source(self):
-        if all(isinstance(x, In) for x in self):
+        if self.plain:
             prefix = '@plain'
         else:
             prefix = '@input'
@@ -204,16 +217,14 @@ class InputTestCase(TestCase):
 
         return self._with_comment(source)
 
-    def inputs(self):
-        out = []
-        for x in self:
-            if isinstance(x, In):
-                out.append(str(x))
-            elif isinstance(x, Command):
-                out.append(x.generate())
-            else:
-                raise ValueError('invalid input object: %r' % x)
-        return out
+    def _normalize_in_out_strings(self):
+        pass
+
+    def _normalize_trailing_spaces(self):
+        pass
+
+    def _join_out_strings(self):
+        pass
 
     def _convert_item(self, item):
         if isinstance(item, str):
@@ -223,40 +234,9 @@ class InputTestCase(TestCase):
 
 class ErrorTestCase(TestCase):
     """
-    Error test cases are created using a decorator::
-
-        @runtime-error
-            The main body has a regular block of input/output interactions.
-
-            This error describes the most common case of failure: when an error
-            is triggered during a program execution. Errors can be anything from
-            seg-faults to exceptions, or buffer overflows, etc.
-
-            @error
-                optional block of messages displayed to stderr
-
-
-        @timeout-error
-            The main body has a regular block of input/output interactions.
-
-            Timeout errors happen when execution takes longer than expected.
-            It doesn't define an error message since the program did not fail,
-            but the runner decided to terminate its execution.
-
-
-        @build-error
-            The main body has a block of messages that should be displayed to
-            stderr. Build errors cannot have a regular block of IO interactions
-            since they happen prior to program execution.
-
-            Build errors happen when program is being prepared to execute. Can
-            be a syntax error, compilation error or anything that prevents
-            the program to run.
-
-
     Error test cases check if a program fails in some specific way. It is also
-    necessary in order to use the IOSpec format to *describe* how a program
-    actually ran, in case an error is found.
+    necessary in order to use the IoSpec format to *describe* how a program
+    actually ran, in case execution triggers an error.
     """
 
     def error_test_case_constructor(tt):
@@ -389,23 +369,7 @@ class ErrorTestCase(TestCase):
 # Utility functions
 #
 @isequal.overload
-def _(x: TestCase, y: TestCase, **kwargs):
-    """
-    Return True if both objects are equal up to some normalization.
-    """
-
-    x, y = normalize([x, y], **kwargs)
-
-    if type(x) is not type(y):
-        return False
-
-    return list(x) == list(y)
-
-
-@isequal.overload
 def _(x: ErrorTestCase, y: ErrorTestCase, **kwargs):
-    x, y = normalize([x, y], **kwargs)
-
     if x.error_type != y.error_type:
         return False
     if x.error_message != y.error_message:

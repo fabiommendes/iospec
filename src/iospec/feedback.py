@@ -321,6 +321,4 @@ def presentation_equal(case1, case2):
     whitespace.
     """
 
-    case1_folded = [x.normalize_presentation() for x in case1]
-    case2_folded = [x.normalize_presentation() for x in case2]
-    return case1_folded == case2_folded
+    return case1.isequal(case2, casefold=True, skip_spaces=True)

@@ -1,5 +1,5 @@
 from iospec.datatypes.node import Node
-from iospec.datatypes.utils import AttrDict, isequal, normalizer
+from iospec.datatypes.utils import AttrDict
 
 
 class IoSpec(Node):
@@ -64,7 +64,19 @@ class IoSpec(Node):
 
     def source(self):
         prefix = '\n\n'.join(block.strip('\n') for block in self.definitions)
-        return prefix + '\n\n'.join(case.source() for case in self)
+
+        data = []
+        for idx, case in enumerate(self):
+            # Join consecutive inline blocks
+            if case.is_input and case.inline and idx:
+                prev = self[idx - 1]
+                if prev.is_input and prev.inline:
+                    data[-1] += '\n' + case.source()
+                    continue
+
+            data.append(case.source())
+
+        return prefix + '\n\n'.join(data)
 
     def inputs(self):
         """
@@ -177,17 +189,3 @@ class IoSpec(Node):
         if not isinstance(item, TestCase):
             raise TypeError('invalid item: %r' % item)
         return item
-
-
-@isequal.overload
-def _(x: IoSpec, y: IoSpec, **kwargs):
-    func = normalizer(**kwargs)
-
-    if len(x) != len(y):
-        return False
-
-    for (xi, yi) in zip(x, y):
-        if not isequal(xi, yi, normalize=func):
-            return False
-    else:
-        return True

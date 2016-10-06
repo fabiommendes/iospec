@@ -1,6 +1,9 @@
 import collections
 import copy
 import pprint
+import re
+
+from iospec.datatypes.utils import isequal
 
 
 class Node(collections.MutableSequence):
@@ -49,11 +52,13 @@ class Node(collections.MutableSequence):
 
     def __eq__(self, other):
         if type(self) is type(other):
-            return self.__dict__ == other.__dict__
+            return self.isequal(other)
         return NotImplemented
 
     def source(self):
-        """Render AST node as iospec source code."""
+        """
+        Render AST node as iospec source code.
+        """
 
         data = ''.join(x.source() for x in self)
         return self._with_comment(data)
@@ -147,11 +152,31 @@ class Node(collections.MutableSequence):
     def transform_strings(self, func):
         """
         Transform all visible string values in test case by the given function
-        *inplace*.
+        *INPLACE*.
         """
 
         for case in self:
             case.transform_strings(func)
+
+    def casefold(self):
+        """
+        Convert all strings to a normalized lowercase *INPLACE*.
+        """
+
+        self.transform_strings(lambda x: x.casefold())
+    
+    def skip_spaces(self):
+        """
+        Remove all extra repeated spaces from strings. *INPLACE*.
+        """
+
+        regex = re.compile('\s+')
+
+        def skip_spaces(x):
+            data = str(x).strip()
+            return ' '.join(regex.split(data))
+
+        self.transform_strings(skip_spaces)
 
     def normalize(self):
         """
@@ -168,6 +193,27 @@ class Node(collections.MutableSequence):
         self._normalize_trailing_spaces()
         self._normalize_in_out_strings()
 
+    def isequal(self, other, normalize=True, casefold=False, skip_spaces=False):
+        """
+        Test if object is equal to argument.
+
+        The default equality test is implemented as x.isequal(y). This function
+        gives better control over equality tests.
+
+        Args:
+            normalize (bool):
+                If True (default), apply x.normalize() data before comparison.
+            casefold (bool):
+                If True, convert all strings to lowercase.
+            skip_spaces (bool):
+                If True, skips all spaces in input and output strings.
+        """
+
+        return isequal(self, other,
+                       normalize=normalize,
+                       casefold=casefold,
+                       skip_spaces=skip_spaces)
+
     def _normalize_trailing_spaces(self):
         pass
 
@@ -179,3 +225,27 @@ class Node(collections.MutableSequence):
 
     def _convert_item(self, item):
         return item
+
+
+@isequal.overload
+def _(x: Node, y: Node, normalize=True, casefold=False, skip_spaces=False):
+    if not (isinstance(x, type(y)) or isinstance(y, type(x))):
+        return False
+
+    if normalize or casefold or skip_spaces:
+        x = x.copy()
+        y = y.copy()
+
+    if normalize:
+        x.normalize()
+        y.normalize()
+
+    if casefold:
+        x.casefold()
+        y.casefold()
+
+    if skip_spaces:
+        x.skip_spaces()
+        y.skip_spaces()
+
+    return list(x) == list(y)

@@ -40,7 +40,7 @@ Each test case is a sequence of In/Out strings:
 The main AST object
 -------------------
 
-.. autoclass:: iospec.types.IoSpec
+.. autoclass:: iospec.datatypes.IoSpec
 
 TestCase elements
 -----------------
@@ -49,10 +49,10 @@ We refer to each run of a program as a "test case". **iospec** implements many
 different test case blocks in order to adapt to different situations. Perhaps
 the most simple block is a SimpleTestCase
 
-.. autoclass:: iospec.types.SimpleTestCase
+.. autoclass:: iospec.datatypes.SimpleTestCase
 
-.. autoclass:: iospec.types.InputTestCase
+.. autoclass:: iospec.datatypes.InputTestCase
 
-.. autoclass:: iospec.types.ErrorTestCase
+.. autoclass:: iospec.datatypes.ErrorTestCase
 
-.. autoclass:: iospec.types.TestCase
+.. autoclass:: iospec.datatypes.TestCase

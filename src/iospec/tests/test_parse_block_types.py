@@ -19,6 +19,12 @@ foo: $name(10)
 foobar
 
 
+### multi-input
+<foo>
+<bar>
+foo bar
+
+
 ### import definition
 @import math
 @from math import sqrt
@@ -39,6 +45,27 @@ def foo(*args):
 
 ### inline input
 @input foo;$name;$int(10)
+
+
+### consecutive inline inputs
+@input $name
+@input bar
+@plain foo
+@plain bar
+
+
+### consecutive block inputs
+@input
+    $name
+
+@input
+    bar
+
+@plain
+    foo
+
+@plain
+    bar
 
 
 ### block plain input
@@ -98,9 +125,16 @@ def test_render_simple_test_case_block_correctly(source):
     assert source.rstrip() == parsed.source().rstrip()
 
 
+def test_render_normalized_test_case_block_correctly(source):
+    parsed = parse(source)
+    parsed.normalize()
+    assert source.rstrip() == parsed.source().rstrip()
+
+
 def test_parse_runtime_error_block_with_error_message():
     src = RENDER_BACK_SOURCES['runtime error with message']
     ast = parse(src)
     case = ast[0]
     assert len(case.get_test_case()) == 3
     assert case.error_message == 'RuntimeError: some error'
+

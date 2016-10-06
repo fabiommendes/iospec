@@ -1,6 +1,6 @@
 import pytest
 
-from iospec import In, Out, parse, normalize
+from iospec import In, Out, parse
 from iospec.commands.all import Foo
 from iospec.datatypes import OutEllipsis
 
@@ -83,5 +83,7 @@ class TestExpansion:
         assert spec1[0].source() == 'Foo <Bar>\nBarfoo'
 
     def test_normalize(self, spec2):
-        x = normalize(spec2, presentation=True)
-        assert x.source() == 'foo<bar>\nbarfoo\n\nham<spam>\neggs'
+        spec2.normalize()
+        spec2.casefold()
+        spec2.skip_spaces()
+        assert spec2.source() == 'foo<bar>\nbarfoo\n\nham<spam>\neggs'

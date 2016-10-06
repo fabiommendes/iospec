@@ -188,27 +188,29 @@ class IoSpecParser:
 
         # Inline plain input
         if line.strip() != '@plain':
+            inline = True
             if not line[6].isspace():
                 raise IoSpecSyntaxError(
                     'line %s: expects an whitespace after @plain'
                     % lineno)
             data = line[7:].replace('\\;', '\x00')
-            data = [In(x.replace('\x00', ';')) for x in data.split(';')]
-            return InputTestCase(
-                data,
-                inline=True,
-                lineno=lineno,
-                comment=lines.comment,
-            )
+            cases = [In(x.replace('\x00', ';')) for x in data.split(';')]
+
+            if lines:
+                self.groups.send(lines)
 
         # Block
-        self.groups.send(lines)
-        data = consume_indented_code_block(self.groups)
-        data = strip_columns(data)
-        cases = [In(line) for line in data.splitlines()]
+        else:
+            inline = False
+            self.groups.send(lines)
+            data = consume_indented_code_block(self.groups)
+            data = strip_columns(data)
+            cases = [In(line) for line in data.splitlines()]
+
         return InputTestCase(
             cases,
-            inline=False,
+            inline=inline,
+            plain=True,
             lineno=lineno,
             comment=lines.comment,
         )
@@ -225,6 +227,8 @@ class IoSpecParser:
                 )
             data = line[7:].replace('\\;', '\x00')
             cases = [x.replace('\x00', ';') for x in data.split(';')]
+            if lines:
+                self.groups.send(lines)
 
         # Block
         else:
@@ -247,6 +251,7 @@ class IoSpecParser:
                 cases[i] = In(x)
         return InputTestCase(
             cases,
+            plain=False,
             inline=inline,
             lineno=lineno,
             comment=lines.comment,
