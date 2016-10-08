@@ -1,4 +1,5 @@
 import decimal
+import pprint
 
 import jinja2
 from generic import generic
@@ -10,10 +11,10 @@ from iospec.utils import tex_escape
 error_titles = {
     'ok': 'Correct Answer',
     'wrong-answer': 'Wrong Answer',
-    'wrong-presentation': 'Presentation Error',
-    'error-timeout': 'Timeout Error',
-    'error-runtime': 'Runtime Error',
-    'error-build': 'Build Error',
+    'presentation-error': 'Presentation Error',
+    'timeout-error': 'Timeout Error',
+    'runtime-error': 'Runtime Error',
+    'build-error': 'Build Error',
 }
 
 jinja_loader = jinja2.PackageLoader('iospec')
@@ -35,7 +36,8 @@ latex_env.filters['escape'] = tex_escape
 
 
 class Feedback:
-    """Represents the user feedback after comparing the results of running a
+    """
+    Represents the user feedback after comparing the results of running a
     program in a test case with the expected results in the answer key.
 
     Args:
@@ -51,7 +53,7 @@ class Feedback:
 
             ok:
                 The testcase answer is correct.
-            wrong-presentation:
+            error-presentation:
                 Program finished execution and probably computed the correct
                 answer. However it was presented incorrectly. The default
                 strategy is a bit simplistic: we compare a case-folded and
@@ -76,8 +78,46 @@ class Feedback:
             some error or improve its solution.
         """
 
+    VALID_STATUS = {'ok', 'wrong-answer', 'presentation-error', 'timeout-error',
+                    'build-error', 'runtime-error'}
+    is_correct = property(lambda x: x.status == 'ok')
+    is_wrong_answer= property(lambda x: x.status == 'wrong-answer')
+    is_presentation_error = property(lambda x: x.status == 'presentation-error')
+    is_timeout_error = property(lambda x: x.status == 'timeout-error')
+    is_build_error = property(lambda x: x.status == 'build-error')
+    is_runtime_error = property(lambda x: x.status == 'runtime-error')
+
+    @property
+    def title(self):
+        """
+        Convert status into a human readable text.
+        """
+
+        return error_titles[self.status]
+
+    @classmethod
+    def grading(cls, testcase, answer_key):
+        """
+        Create Feedback object from testcase and answer_key preforming an
+        automatic grading.
+        """
+
+        return feedback(testcase, answer_key)
+
+    @classmethod
+    def from_json(cls, data):
+        if 'testcase' not in data or 'answer_key' not in data:
+            raise ValueError('missing testcase or answer key fields in JSON '
+                             'data %r' % data)
+        kwargs = dict(data)
+        testcase = TestCase.from_json(kwargs.pop('testcase'))
+        answer_key = TestCase.from_json(kwargs.pop('answer_key'))
+        return Feedback(testcase, answer_key, **kwargs)
+
     def __init__(self, testcase, answer_key, grade, status, message=None,
                  hint=None):
+        if status not in self.VALID_STATUS:
+            raise ValueError('invalid status: %r' % status)
         self.testcase = testcase
         self.answer_key = answer_key
         self.grade = decimal.Decimal(grade)
@@ -87,34 +127,6 @@ class Feedback:
 
     def __repr__(self):
         return '<Feedback: %s (%.2f)>' % (self.status, self.grade)
-
-    @classmethod
-    def grading(cls, testcase, answer_key):
-        """Create Feedback object from testcase and answer_key preforming an
-        automatic grading."""
-
-        return feedback(testcase, answer_key)
-
-    @classmethod
-    def from_json(cls, data):
-        kwargs = dict(data)
-        testcase = TestCase.from_json(kwargs.pop('testcase'))
-        answer_key = TestCase.from_json(kwargs.pop('answer_key'))
-        return Feedback(testcase, answer_key, **kwargs)
-
-    @property
-    def is_correct(self):
-        """
-        True if status is 'ok'.
-        """
-
-        return self.status == 'ok'
-
-    @property
-    def title(self):
-        """Convert status into a human readable text."""
-
-        return error_titles[self.status]
 
     def compute_grade(self):
         """
@@ -230,6 +242,22 @@ class Feedback:
         data['grade'] = float(self.grade)
         return data
 
+    def pprint(self):
+        """
+        Pretty prints feedback.
+
+        Useful for debugging.
+        """
+
+        print(self.pformat())
+
+    def pformat(self):
+        """
+        Similar to .pprint(), but returns a string instead.
+        """
+
+        return pprint.pformat(self.to_json())
+
 
 #
 # Color support
@@ -271,7 +299,7 @@ def feedback(response: TestCase, answer_key: TestCase):
 
     # Error messages
     if isinstance(response, ErrorTestCase):
-        status = 'error-' + response.error_type
+        status = response.error_type + '-error'
 
     # Correct response
     elif list(response) == list(answer_key):
@@ -280,7 +308,7 @@ def feedback(response: TestCase, answer_key: TestCase):
 
     # Presentation errors
     elif presentation_equal(response, answer_key):
-        status = 'wrong-presentation'
+        status = 'presentation-error'
         grade = decimal.Decimal(0.5)
 
     # Wrong answer

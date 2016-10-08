@@ -44,13 +44,20 @@ class TestCase(Node):
         return isinstance(self, SimpleTestCase)
 
     @property
-    def is_expanded(self):
-        io_types = {In, Out}
-        return self.is_simple and set(map(type, self)).issubset(io_types)
-
-    @property
     def is_input(self):
         return isinstance(self, InputTestCase)
+
+    @property
+    def is_expanded(self):
+        return all(x.is_expanded for x in self)
+
+    @property
+    def is_safe(self):
+        return all(x.is_safe for x in self)
+
+    @property
+    def is_complete(self):
+        return (not self.is_input) and all(x.is_complete for x in self)
 
     @classmethod
     def from_json(cls, data):

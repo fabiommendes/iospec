@@ -59,7 +59,7 @@ class IoSpec(Node):
         self.definitions.extend(definitions or ())
 
     def __repr__(self):
-        type_name = type(self.__class__.__name__)
+        type_name = type(self).__name__
         return '<%s: %s>' % (type_name, [x.type for x in self])
 
     def source(self):

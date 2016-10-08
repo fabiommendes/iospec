@@ -32,7 +32,7 @@ def parse_number(arg, number_class, minvalue=-2 ** 31, maxvalue=2 ** 31 - 1):
         a:b  ==> (a, b-1)
     """
 
-    arg = arg.strip()
+    arg = (arg or '').strip()
 
     try:
         if not arg:

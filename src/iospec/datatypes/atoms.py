@@ -10,7 +10,7 @@ class Atom(collections.UserString):
     Base class for all atomic elements.
     """
 
-    is_input = is_output = False
+    is_input = is_output = is_expanded = is_safe = is_complete = False
     escape_chars = {
         '<': '\\<',
         '$': '\\$',
@@ -58,17 +58,23 @@ class Atom(collections.UserString):
         return st
 
     def source(self):
-        """Expand node as an iospec source code."""
+        """
+        Expand node as an iospec source code.
+        """
 
         return self._escape(self.data)
 
     def copy(self):
-        """Return a copy"""
+        """
+        Return a copy.
+        """
 
         return copy.copy(self)
 
     def transform(self, func):
-        """Return a transformed version of itself by the given function"""
+        """
+        Return a transformed version of itself by the given function.
+        """
 
         new = copy.copy(self)
         new.data = func(new.data)
@@ -96,6 +102,7 @@ class Comment(Atom):
     """
 
     type = 'comment'
+    is_complete = is_safe = is_expanded = True
 
     def source(self):
         return self.data
@@ -123,14 +130,14 @@ class In(InOrOut):
     """
 
     type = 'input'
-    is_input = True
+    is_input = is_safe = is_complete = is_expanded = True
 
     def source(self):
         return '<%s>\n' % super().source()
 
 
 class OutOrEllipsis(InOrOut):
-    is_output = True
+    is_output = is_safe = is_complete = is_expanded = True
 
     @classmethod
     def is_ellipsis(cls, data):
@@ -216,7 +223,7 @@ class OutRegex(InOrOut):
     """
 
     type = 'regex'
-    is_output = True
+    is_output = is_complete = is_safe = is_expanded = True
 
     def source(self):
         return '/%s/' % super().source()
@@ -239,6 +246,11 @@ class Command(Atom):
 
     type = 'command'
     is_input = True
+
+    # TODO: mark built in commands as safe.
+    @property
+    def is_safe(self):
+        return False
 
     def __init__(self, name, args=None, factory=None, lineno=None):
         self.name = name

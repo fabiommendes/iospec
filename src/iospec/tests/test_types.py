@@ -40,7 +40,7 @@ class AbstractTestCase:
         assert not obj.is_simple
 
     def test_object_is_expanded(self, obj):
-        assert not obj.is_expanded
+        assert obj.is_expanded
 
     def test_object_is_input(self, obj):
         assert not obj.is_input
@@ -84,9 +84,6 @@ class TestSimpleTestCase(AbstractTestCase):
 
     def test_object_is_simple(self, obj):
         assert obj.is_simple
-
-    def test_object_is_expanded(self, obj):
-        assert obj.is_expanded
 
 
 class TestInputTestCase(AbstractTestCase):
