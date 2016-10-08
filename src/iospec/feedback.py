@@ -141,6 +141,13 @@ class Feedback:
         if self.hint is None:
             self.hint = out.hint
 
+    def get_error_message(self):
+        """
+        Return error message when it exists.
+        """
+
+        return self.testcase.get_error_message()
+
     def render(self, method='text', **kwds):
         """
         Render object using the specified method.

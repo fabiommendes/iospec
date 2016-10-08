@@ -138,6 +138,18 @@ class TestCase(Node):
             if isinstance(atom, (In, Out, OutEllipsis)):
                 self[i] = atom.transform(func)
 
+    def get_testcase(self):
+        return self.copy()
+
+    def get_error_message(self):
+        return ''
+
+    def get_exception(self):
+        return None
+
+    def raise_exception(self):
+        raise Exception('raising exception from non-error test case')
+
     def _join_out_strings(self):
         self.fuse_outputs()
 
@@ -301,7 +313,7 @@ class ErrorTestCase(TestCase):
         if len(self) == 0:
             return self._with_comment('@timeout-error\n')
         else:
-            case = self.get_test_case()
+            case = self.get_testcase()
             source = case.source()
             return self._with_comment('@timeout-error\n' + indent(source, 4))
 
@@ -312,7 +324,7 @@ class ErrorTestCase(TestCase):
             return self._with_comment('@timeout-error\n@error\n' + error_msg)
 
         else:
-            case = self.get_test_case()
+            case = self.get_testcase()
             source = case.source()
             data = '@runtime-error\n' + indent(source, 4)
             if self.error_message:
@@ -323,7 +335,7 @@ class ErrorTestCase(TestCase):
         super().transform_strings(func)
         self.error_message = func(self.error_message)
 
-    def get_test_case(self):
+    def get_testcase(self):
         """
         Return a SimpleTestCase() instance with the same data in the test case
         section of the error.

@@ -135,6 +135,6 @@ def test_parse_runtime_error_block_with_error_message():
     src = RENDER_BACK_SOURCES['runtime error with message']
     ast = parse(src)
     case = ast[0]
-    assert len(case.get_test_case()) == 3
+    assert len(case.get_testcase()) == 3
     assert case.error_message == 'RuntimeError: some error'
 
