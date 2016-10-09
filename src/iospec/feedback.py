@@ -80,6 +80,12 @@ class Feedback:
 
     VALID_STATUS = {'ok', 'wrong-answer', 'presentation-error', 'timeout-error',
                     'build-error', 'runtime-error'}
+    STATUS_MAP = {
+        'wrong-presentation': 'presentation-error',
+        'error-timeout': 'timeout-error',
+        'error-build': 'build-error',
+        'error-runtime': 'runtime-error',
+    }
     is_correct = property(lambda x: x.status == 'ok')
     is_wrong_answer= property(lambda x: x.status == 'wrong-answer')
     is_presentation_error = property(lambda x: x.status == 'presentation-error')
@@ -112,6 +118,9 @@ class Feedback:
         kwargs = dict(data)
         testcase = TestCase.from_json(kwargs.pop('testcase'))
         answer_key = TestCase.from_json(kwargs.pop('answer_key'))
+
+        # Update from old form of status strings
+        kwargs['status'] = cls.STATUS_MAP.get('status', 'ok')
         return Feedback(testcase, answer_key, **kwargs)
 
     def __init__(self, testcase, answer_key, grade, status, message=None,
