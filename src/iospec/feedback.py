@@ -120,7 +120,8 @@ class Feedback:
         answer_key = TestCase.from_json(kwargs.pop('answer_key'))
 
         # Update from old form of status strings
-        kwargs['status'] = cls.STATUS_MAP.get('status', 'ok')
+        status = data['status']
+        kwargs['status'] = cls.STATUS_MAP.get(status, status)
         return Feedback(testcase, answer_key, **kwargs)
 
     def __init__(self, testcase, answer_key, grade, status, message=None,
@@ -304,14 +305,25 @@ class disabled:
 
 
 @generic
-def feedback(response: TestCase, answer_key: TestCase):
+def feedback(response: TestCase, answer_key: TestCase, stream=False):
     """
     Return a feedback structure that represents the success/error for a single
     test case.
+
+    Args:
+        response, answer_key (TestCase):
+            The response and answer key test case structures.
+        stream (bool):
+            If True, compares both components by the C-stream interaction. Each
+            argument is normalized with x.normalize(stream=True) and the
+            normalized version is saved on the resulting feedback structure.
     """
 
+    response = response.copy()
+    answer_key = answer_key.copy()
+    response.normalize(stream=stream)
+    answer_key.normalize(stream=stream)
     grade = decimal.Decimal(0)
-    status = None
 
     # Error messages
     if isinstance(response, ErrorTestCase):
@@ -339,12 +351,12 @@ def feedback(response: TestCase, answer_key: TestCase):
 
 
 @feedback.overload
-def _(response: IoSpec, answer_key: IoSpec):
+def _(response: IoSpec, answer_key: IoSpec, **kwargs):
     value = decimal.Decimal(1)
     fb = None
 
     for resp, key in zip(response, answer_key):
-        curr_feedback = fb(resp, key)
+        curr_feedback = feedback(resp, key, **kwargs)
 
         if fb is None:
             fb = curr_feedback

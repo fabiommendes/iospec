@@ -3,6 +3,8 @@ from iospec import parse
 
 
 # Some iospec examples
+from iospec.feedback import feedback
+
 RENDER_BACK_SOURCES = """
 # simple example
 foo: <bar>
@@ -131,10 +133,70 @@ def test_render_normalized_test_case_block_correctly(source):
     assert source.rstrip() == parsed.source().rstrip()
 
 
+def test_copy_produces_identical_objects(source):
+    ast = parse(source)
+    assert ast.to_json() == ast.copy().to_json()
+
+
+def test_normalization_is_idempotent(source):
+    ast1 = parse(source)
+
+    ast2 = ast1.copy()
+    ast2.normalize()
+    ast3 = ast2.copy()
+    ast3.normalize()
+    assert ast2 == ast3
+    assert ast2.to_json() == ast3.to_json()
+
+    # Now with stream=True normalization
+    ast2 = ast1.copy()
+    ast2.normalize(stream=True)
+    ast3 = ast2.copy()
+    ast3.normalize(stream=True)
+    print('-------')
+    ast2.pprint()
+    ast3.pprint()
+    assert ast2 == ast3
+    assert ast2.to_json() == ast3.to_json()
+
+
 def test_parse_runtime_error_block_with_error_message():
     src = RENDER_BACK_SOURCES['runtime error with message']
     ast = parse(src)
     case = ast[0]
     assert len(case.get_testcase()) == 3
     assert case.error_message == 'RuntimeError: some error'
+
+
+def test_system_streams_normalization():
+    src = RENDER_BACK_SOURCES['simple example']
+    ast = parse(src)
+    ast.normalize(stream=True)
+    assert len(ast) == 1
+
+    testcase = ast[0]
+    assert testcase[0].is_input
+    assert testcase[1].is_output
+    assert len(testcase) == 2
+    x, y = testcase
+    assert x == 'bar'
+    assert y == 'foo: \nfoobar'
+
+
+def test_system_streams_feedback_comparison():
+    key = parse(RENDER_BACK_SOURCES['simple example'])
+    equiv = ('<bar>\n'
+             'foo: \n'
+             'foobar')
+    equiv = parse(equiv)
+    key2 = key.copy()
+    key2.normalize(stream=True)
+    assert key2[:] == equiv[:]
+    del equiv[0][0]
+    equiv.pprint()
+    fb1 = feedback(equiv, key, stream=False)
+    fb2 = feedback(equiv, key, stream=True)
+    assert fb1.status != fb2.status
+    assert not fb1.is_correct
+    assert fb2.is_correct
 

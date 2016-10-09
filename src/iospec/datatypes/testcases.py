@@ -1,4 +1,4 @@
-from iospec.datatypes import Command, In, Out, Atom, OutEllipsis
+from iospec.datatypes import Command, In, Out, Atom, OutEllipsis, OutRegex
 from iospec.datatypes.node import Node
 from iospec.datatypes.utils import isequal
 from iospec.exceptions import BuildError
@@ -168,6 +168,21 @@ class TestCase(Node):
         if len(new_data) != len(self):
             self[:] = new_data
 
+    def _normalize_in_out_streams(self):
+        # Nothing to do in normalized content
+        if len(self) == 2 and self[0].is_input and self[1].is_output:
+            return
+
+        data = [x for x in self if x.is_input]
+        out = [x for x in self if not x.is_input]
+        if not out:
+            out = [Out('')]
+        data.extend(out)
+        self[:] = data
+        self.fuse_outputs()
+        if isinstance(self[-1], (Out, OutEllipsis)) and self[-1].endswith('\n'):
+            self[-1] = self[-1].strip('\n')
+
     def _normalize_trailing_spaces(self):
         # Detect trailing spaces inside string
         for idx, atom in enumerate(self):
@@ -237,6 +252,9 @@ class InputTestCase(TestCase):
         return self._with_comment(source)
 
     def _normalize_in_out_strings(self):
+        pass
+
+    def _normalize_in_out_streams(self):
         pass
 
     def _normalize_trailing_spaces(self):

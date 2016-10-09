@@ -23,7 +23,7 @@ class Node(collections.MutableSequence):
             yield x
 
     def __getitem__(self, idx):
-        if isinstance(idx, int):
+        if isinstance(idx, (int, slice)):
             return self._data[idx]
         elif isinstance(idx, tuple):
             data = self
@@ -124,12 +124,16 @@ class Node(collections.MutableSequence):
         return {k: to_json(v) for (k, v) in dic.items()}
 
     def copy(self):
-        """Return a deep copy."""
+        """
+        Return a deep copy.
+        """
 
         return copy.deepcopy(self)
 
     def set_meta(self, attr, value):
-        """Writes an attribute of meta information."""
+        """
+        Writes an attribute of meta information.
+        """
 
         self.meta[attr] = value
 
@@ -178,7 +182,7 @@ class Node(collections.MutableSequence):
 
         self.transform_strings(skip_spaces)
 
-    def normalize(self):
+    def normalize(self, stream=False):
         """
         Normalize Iospec element *INPLACE* to have a predictable structure.
 
@@ -187,11 +191,20 @@ class Node(collections.MutableSequence):
         * Remove trailing spaces from outputs
         * Alternate Out/In strings in SimpleTestCase nodes.
         * Join consecutive Out strings putting newlines between them.
+
+        If ``stream=True``, normalize to a C-like interaction: all inputs are
+        moved to the beginning and all outputs are fused in the end of file.
+        This is useful to compare interactions from C programs or from other
+        languages that interact directly with low level stdout/stdin/stderr
+        streams.
         """
 
+        if stream:
+            self._normalize_in_out_streams()
         self._join_out_strings()
-        self._normalize_trailing_spaces()
-        self._normalize_in_out_strings()
+        if not stream:
+            self._normalize_trailing_spaces()
+            self._normalize_in_out_strings()
 
     def isequal(self, other, normalize=True, casefold=False, skip_spaces=False):
         """
@@ -218,6 +231,9 @@ class Node(collections.MutableSequence):
         pass
 
     def _normalize_in_out_strings(self):
+        pass
+
+    def _normalize_in_out_streams(self):
         pass
 
     def _join_out_strings(self):

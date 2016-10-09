@@ -179,6 +179,10 @@ class IoSpec(Node):
         for x in self:
             x._normalize_in_out_strings()
 
+    def _normalize_in_out_streams(self):
+        for x in self:
+            x._normalize_in_out_streams()
+
     def _join_out_strings(self):
         for x in self:
             x._join_out_strings()
