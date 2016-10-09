@@ -179,7 +179,8 @@ class TestCase(Node):
             out = [Out('')]
         data.extend(out)
         self[:] = data
-        self.fuse_outputs()
+        self.fuse_outputs(sep='')
+
         if isinstance(self[-1], (Out, OutEllipsis)) and self[-1].endswith('\n'):
             self[-1] = self[-1].strip('\n')
 

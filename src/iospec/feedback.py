@@ -352,22 +352,18 @@ def feedback(response: TestCase, answer_key: TestCase, stream=False):
 
 @feedback.overload
 def _(response: IoSpec, answer_key: IoSpec, **kwargs):
-    value = decimal.Decimal(1)
     fb = None
+    value = decimal.Decimal(1)
 
-    for resp, key in zip(response, answer_key):
-        curr_feedback = feedback(resp, key, **kwargs)
-
+    for case, answer_key in zip(response, answer_key):
+        curr_feedback = feedback(case, answer_key, **kwargs)
         if fb is None:
             fb = curr_feedback
-
         if curr_feedback.grade < value:
             fb = curr_feedback
             value = curr_feedback.grade
-
             if value == 0:
                 break
-
     return fb
 
 

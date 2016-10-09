@@ -178,16 +178,16 @@ def test_system_streams_normalization():
     assert testcase[0].is_input
     assert testcase[1].is_output
     assert len(testcase) == 2
+
     x, y = testcase
     assert x == 'bar'
-    assert y == 'foo: \nfoobar'
+    assert y == 'foo: foobar'
 
 
 def test_system_streams_feedback_comparison():
     key = parse(RENDER_BACK_SOURCES['simple example'])
     equiv = ('<bar>\n'
-             'foo: \n'
-             'foobar')
+             'foo: foobar')
     equiv = parse(equiv)
     key2 = key.copy()
     key2.normalize(stream=True)

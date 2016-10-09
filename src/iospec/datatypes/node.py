@@ -201,8 +201,8 @@ class Node(collections.MutableSequence):
 
         if stream:
             self._normalize_in_out_streams()
-        self._join_out_strings()
-        if not stream:
+        else:
+            self._join_out_strings()
             self._normalize_trailing_spaces()
             self._normalize_in_out_strings()
 
