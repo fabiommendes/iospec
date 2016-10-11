@@ -1,11 +1,21 @@
 import random as _random
 
-from faker import Factory
-
 from iospec.commands import base
 from iospec.commands.utils import iscommand, parse_number as _parse_number
 
-_fake = Factory.create()
+
+class FakeProxy:
+    def __init__(self):
+        self.__fake = None
+
+    def __getattr__(self, attr):
+        if self.__fake is None:
+            from faker import Factory
+            self.__fake = Factory.create()
+
+        return getattr(self.__fake, attr)
+
+_fake = FakeProxy()
 
 
 @iscommand
@@ -240,5 +250,5 @@ class Foo(base.Command):
 
 
 # Clean namespace
-del base, iscommand, Factory
+del base, iscommand, FakeProxy
 
