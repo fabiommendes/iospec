@@ -30,7 +30,7 @@ class IoSpecParser:
 
     Usage:
         >>> parser = IoSpecParser(src)                          # doctest: +SKIP
-        >>> ast = parser.parser()
+        >>> ast = parser.parse()
     """
 
     def __init__(self, source, commands=None):
@@ -57,10 +57,9 @@ class IoSpecParser:
         self.definitions.append(definition)
 
     def parse(self):
-        """Compute and return the parse tree"""
-
-        if self.is_parsed:
-            return self.ast
+        """
+        Compute and return the parse tree
+        """
 
         # Extract all blocks from source
         for group in self.groups:
@@ -477,8 +476,8 @@ def strip_columns(data, n=4):
 
     for idx, line in enumerate(lines):
         if len(line) >= n:
-            lines[idx] = line[4:]
-            if set(line[:4]) != {' '}:
+            lines[idx] = line[n:]
+            if set(line[:n]) != {' '}:
                 error(line)
         elif not line or set(line) == {' '}:
             lines[idx] = ''

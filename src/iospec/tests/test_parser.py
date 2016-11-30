@@ -4,6 +4,7 @@ import pytest
 
 from iospec import parse, Out, In, OutEllipsis
 from iospec.errors import IoSpecSyntaxError
+from iospec.parser import strip_columns, get_output_string, group_blocks
 
 
 def test_open_file():
@@ -92,3 +93,20 @@ def test_escaped_dollar_sign():
 def test_escaped_lt_sign():
     testcase = parse(r'foo\<bar')[0]
     assert testcase[0] == Out('foo<bar')
+
+
+def test_invalid_command():
+    with pytest.raises(IoSpecSyntaxError):
+        parse('@invalid-command foo')
+
+    for cmd in ['command', 'build-error', 'timeout-error']:
+        with pytest.raises(IoSpecSyntaxError):
+            parse('@%s (garbage)\n    a block of data' % cmd)
+
+
+#
+# Utility functions
+#
+def test_strip_columns():
+    data = strip_columns('  foo\n  bar', 2)
+    assert data == 'foo\nbar'
