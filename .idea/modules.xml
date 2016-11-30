@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../boxed/.idea/boxed.iml" filepath="$PROJECT_DIR$/../boxed/.idea/boxed.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../ejserver/.idea/ejserver.iml" filepath="$PROJECT_DIR$/../ejserver/.idea/ejserver.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../ejudge/.idea/ejudge.iml" filepath="$PROJECT_DIR$/../ejudge/.idea/ejudge.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/iospec.iml" filepath="$PROJECT_DIR$/.idea/iospec.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../markio/.idea/markio.iml" filepath="$PROJECT_DIR$/../markio/.idea/markio.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../srvice/.idea/srvice.iml" filepath="$PROJECT_DIR$/../srvice/.idea/srvice.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../django-viewpack/.idea/viewgroups.iml" filepath="$PROJECT_DIR$/../django-viewpack/.idea/viewgroups.iml" />
+    </modules>
+  </component>
+</project>

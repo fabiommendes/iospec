@@ -2,4 +2,10 @@
 Congratulations! Your answer is correct!
 {% else %}
 {{ h1(title) }}
+Your response
+{{ case.pformat()|indent(4) }}
+Expected answer
+{{ answer_key.pformat()|indent(4) }}
+{%- if case.is_error %}
+{{ case.error_message }}{% endif %}
 {% endif %}

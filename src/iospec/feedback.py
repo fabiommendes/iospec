@@ -138,6 +138,16 @@ class Feedback:
     def __repr__(self):
         return '<Feedback: %s (%.2f)>' % (self.status, self.grade)
 
+    def __html__(self):
+        return self.render_html()
+
+    def __eq__(self, other):
+        if not isinstance(other, Feedback):
+            return NotImplemented
+
+        attrs = ['testcase', 'answer_key', 'grade', 'status', 'hint', 'message']
+        return all(getattr(self, at) == getattr(other, at) for at in attrs)
+
     def compute_grade(self):
         """
         Compute the grade and feedback status from the testcase and answer key.
@@ -164,34 +174,37 @@ class Feedback:
         """
 
         try:
-            render_format = getattr(self, 'as_' + method)
+            render_format = getattr(self, 'render_' + method)
         except AttributeError:
             raise ValueError('unknown format: %r' % method)
         else:
             return render_format(**kwds)
 
-    def as_text(self):
-        """Plain text rendering"""
+    def render_text(self):
+        """
+        Plain text rendering.
+        """
 
         return self._render('feedback.txt', color=disabled)
 
-    def as_color(self):
-        """Plain text rendering with terminal colors."""
+    def render_color(self):
+        """
+        Plain text rendering with terminal colors.
+        """
 
         return self._render('feedback.txt', color=color)
 
-    def as_html(self):
-        """Render to an html div. Same as as_div()"""
+    def render_html(self):
+        """
+        Render to an html div. Same as render_div()
+        """
 
         return self._render('feedback-div.html')
 
-    def as_div(self):
-        """Render to an html div."""
-
-        return self._render('feedback-div.html')
-
-    def as_latex(self):
-        """Render to latex."""
+    def render_latex(self):
+        """
+        Render to latex.
+        """
 
         return self._render('feedback.tex', latex=True)
 

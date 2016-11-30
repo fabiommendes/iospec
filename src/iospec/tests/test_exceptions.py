@@ -1,3 +1,5 @@
+import pytest
+
 from iospec.exceptions import BuildError
 
 
@@ -26,3 +28,19 @@ def test_traceback_starts_at_the_right_level():
     1/0
 ZeroDivisionError: division by zero
 """
+
+
+def test_nested_execution():
+    ex = meta_executor('1/0', level=2)
+    assert isinstance(ex, BuildError)
+    assert ex.message == """Traceback (most recent call last):
+  File "<input>", line 1, in <module>
+    1/0
+ZeroDivisionError: division by zero
+"""
+
+
+def test_cannot_create_error_without_traceback():
+    ex = SyntaxError()
+    with pytest.raises(ValueError):
+        BuildError.from_exception(ex)

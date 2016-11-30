@@ -6,8 +6,10 @@ class ExecutionErrorBase(Exception):
     Base class for BuildError and ExecutionError.
     """
 
+    _default_message = 'runtime error'
+
     @classmethod
-    def from_exception(cls, ex, msg='runtime error', tb=None, sources=None,
+    def from_exception(cls, ex, msg=None, tb=None, sources=None,
                        skip=1):
         """
         Raise a BuildError using a formatted traceback.
@@ -15,6 +17,7 @@ class ExecutionErrorBase(Exception):
         The source code for the file in which the exception occurred.
         """
 
+        msg = cls._default_message if msg is None else msg
         sources = dict(sources or {})
         sources = {name: src.splitlines() for name, src in sources.items()}
         tb = tb or ex.__traceback__
@@ -59,9 +62,7 @@ class BuildError(ExecutionErrorBase):
     Error occurring during the build phase of a program execution.
     """
 
-    @classmethod
-    def from_exception(cls, ex, msg='build error', tb=None, sources=None):
-        return super().from_exception(ex, msg, tb, sources)
+    _default_message = 'build error'
 
 
 class ExecutionError(ExecutionErrorBase):
@@ -69,29 +70,3 @@ class ExecutionError(ExecutionErrorBase):
     Error raised during execution of user code.
     """
 
-
-def _format_traceback(ex, source):
-    """
-    Creates a error message string from an exception with a __traceback__
-    value. Usually this requires that this function must be executed inside
-    the except block that caught the exception.
-    """
-
-    ex_name = type(ex).__name__
-    messages = []
-    code_lines = source.splitlines()
-    tb = ex.__traceback__
-
-    tb_list = reversed(traceback.extract_tb(tb))
-    for (filename, lineno, func_name, text) in tb_list:
-        if 'iospec' in filename:
-            break
-        if filename == '<string>':
-            text = code_lines[lineno - 1].strip()
-        messages.append((filename, lineno, func_name, text))
-
-    messages.reverse()
-    messages = traceback.format_list(messages)
-    messages.insert(0, 'Traceback (most recent call last)')
-    messages.append('%s: %s' % (ex_name, ex))
-    return '\n'.join(messages)
