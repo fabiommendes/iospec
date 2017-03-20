@@ -140,7 +140,7 @@ class IoSpecParser:
                     'Invalid output line: %s' % original_line
                 )
 
-        return SimpleTestCase(stream, comment=lines.comment)
+        return StandardTestCase(stream, comment=lines.comment)
 
     def parse_command_definition(self, lines):
         idx, line = lines.popleft()

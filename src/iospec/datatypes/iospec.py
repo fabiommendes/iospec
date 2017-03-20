@@ -18,10 +18,10 @@ class IoSpec(Node):
     Attributes:
         has_errors (bool):
             True if IoSpec structure has an ErrorTestCase child.
-        is_simple (bool):
-            True if all children are instances of SimpleTestCase.
+        is_standard (bool):
+            True if all children are instances of StandardTestCase.
         is_expanded (bool):
-            True if all children are instances of SimpleTestCase that have all
+            True if all children are instances of StandardTestCase that have all
             input commands expanded. This tells that each child is made of just
             a sequence of :class:`In` and :class:`Out` strings.
     """
@@ -29,18 +29,28 @@ class IoSpec(Node):
     type = 'iospec'
 
     @property
-    def has_errors(self):
-        from iospec.datatypes import ErrorTestCase
-
-        return any(isinstance(x, ErrorTestCase) for x in self)
+    def is_standard_test_case(self):
+        return all(x.is_standard_test_case for x in self)
 
     @property
-    def is_simple(self):
-        return all(x.is_simple for x in self)
+    def is_error_test_case(self):
+        return all(x.is_error_test_case for x in self)
 
     @property
-    def is_expanded(self):
-        return all(x.is_expanded for x in self)
+    def is_input_test_case(self):
+        return all(x.is_input_test_case for x in self)
+
+    @property
+    def has_standard_test_case(self):
+        return any(x.has_standard_test_case for x in self)
+
+    @property
+    def has_error_test_case(self):
+        return any(x.has_error_test_case for x in self)
+
+    @property
+    def has_input_test_case(self):
+        return any(x.has_input_test_case for x in self)
 
     @classmethod
     def from_json(cls, data):
@@ -53,6 +63,16 @@ class IoSpec(Node):
         return cls([TestCase.from_json(x) for x in data])
 
     def __init__(self, data=(), *, commands=None, definitions=None):
+        if isinstance(data, str):
+            from iospec.parser import parse
+            data = parse(data)
+        if isinstance(data, IoSpec):
+            if commands:
+                commands = dict(data.commands, **commands)
+            if definitions:
+                definitions = data.definitions + list(definitions)
+            data = list(data)
+
         super().__init__(data)
         self.commands = AttrDict(commands or {})
         self.definitions = []
@@ -62,13 +82,16 @@ class IoSpec(Node):
         type_name = type(self).__name__
         return '<%s: %s>' % (type_name, [x.type for x in self])
 
+    def __str__(self):
+        return self.pformat()
+
     def source(self):
         prefix = '\n\n'.join(block.strip('\n') for block in self.definitions)
 
         data = []
         for idx, case in enumerate(self):
             # Join consecutive inline blocks
-            if case.is_input and case.inline and idx:
+            if case.is_input_test_case and case.inline and idx:
                 prev = self[idx - 1]
                 if prev.is_input and prev.inline:
                     data[-1] += '\n' + case.source()
@@ -139,7 +162,7 @@ class IoSpec(Node):
         """
 
         for case in self:
-            if case.is_error:
+            if case.is_error_test_case:
                 return case.get_exception()
 
     def get_error_type(self):
@@ -150,7 +173,7 @@ class IoSpec(Node):
         """
 
         for case in self:
-            if case.is_error:
+            if case.is_error_test_case:
                 return case.error_type
 
     def get_error_message(self):
@@ -161,7 +184,7 @@ class IoSpec(Node):
         """
 
         for case in self:
-            if case.is_error:
+            if case.is_error_test_case:
                 return case.get_error_message()
 
     def to_json(self):
@@ -191,5 +214,5 @@ class IoSpec(Node):
         from iospec.datatypes import TestCase
 
         if not isinstance(item, TestCase):
-            raise TypeError('invalid item: %r' % item)
+            raise TypeError('invalid item: %s' % repr(item))
         return item

@@ -31,17 +31,17 @@ def tree_presentation():
 
 @pytest.fixture
 def feedback_ok(tree_ok):
-    return feedback.feedback(tree_ok[0], tree_ok[0])
+    return feedback.get_feedback(tree_ok[0], tree_ok[0])
 
 
 @pytest.fixture
 def feedback_wrong(tree_ok, tree_wrong):
-    return feedback.feedback(tree_wrong[0], tree_ok[0])
+    return feedback.get_feedback(tree_wrong[0], tree_ok[0])
 
 
 @pytest.fixture
 def feedback_presentation(tree_ok, tree_presentation):
-    return feedback.feedback(tree_presentation[0], tree_ok[0])
+    return feedback.get_feedback(tree_presentation[0], tree_ok[0])
 
 
 def test_ok_feedback(feedback_ok):
@@ -85,7 +85,7 @@ def test_presentation(feedback_presentation):
 def test_hello_wrong():
     correct = ioparse('hello world!')
     wrong = ioparse('hi world!')
-    fb = feedback.feedback(wrong[0], correct[0])
+    fb = feedback.get_feedback(wrong[0], correct[0])
     txt = fb.render_text()
     html = fb.render_html()
     tex = fb.render_latex()
@@ -107,14 +107,14 @@ def test_equality(feedback_ok, feedback_wrong):
 def test_feedback_from_json(feedback_ok):
     json = {'answer_key': {
         'data': [['Out', 'foo: '], ['In', 'bar'], ['Out', 'hi bar!']],
-        'type': 'simple'},
+        'type': 'standard'},
         'grade': 1.0,
         'hint': None,
         'message': None,
         'status': 'ok',
         'testcase': {
             'data': [['Out', 'foo: '], ['In', 'bar'], ['Out', 'hi bar!']],
-            'type': 'simple'}}
+            'type': 'standard'}}
     assert json == feedback_ok.to_json()
     data = Feedback.from_json(json)
     assert data == feedback_ok
@@ -143,5 +143,5 @@ def test_render_methods_for_good_case(feedback_ok):
 
 
 def test_feedback_function_accepts_iospec(tree_ok, tree_wrong, feedback_wrong):
-    fb = feedback.feedback(tree_wrong, tree_ok)
+    fb = feedback.get_feedback(tree_wrong, tree_ok)
     assert fb == feedback_wrong

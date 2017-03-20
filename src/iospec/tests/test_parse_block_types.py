@@ -3,7 +3,7 @@ from iospec import parse
 
 
 # Some iospec examples
-from iospec.feedback import feedback
+from iospec.feedback import get_feedback
 
 RENDER_BACK_SOURCES = """
 # simple example
@@ -194,8 +194,8 @@ def test_system_streams_feedback_comparison():
     assert key2[:] == equiv[:]
     del equiv[0][0]
     equiv.pprint()
-    fb1 = feedback(equiv, key, stream=False)
-    fb2 = feedback(equiv, key, stream=True)
+    fb1 = get_feedback(equiv, key, stream=False)
+    fb2 = get_feedback(equiv, key, stream=True)
     assert fb1.status != fb2.status
     assert not fb1.is_correct
     assert fb2.is_correct

@@ -42,6 +42,11 @@ def test_ellipsis_escapes():
     assert template == 'foo...barspambaz'
 
 
+def test_source_with_ellipsis_can_be_printed():
+    iospec = parse('foo: <bar>\n...')
+    assert iospec.source() == 'foo: <bar>\n...'
+
+
 class TestAtom:
     def test_equality(self):
         for cls in [In, Out]:

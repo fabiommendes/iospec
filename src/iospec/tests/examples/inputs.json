@@ -1,6 +1,6 @@
 [
   {
-    "type": "simple",
+    "type": "standard",
     "data": [
       ["Out", ""],
       ["In", "foo"],

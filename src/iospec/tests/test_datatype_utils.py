@@ -1,4 +1,4 @@
-from iospec import isequal, parse, testcase_diff as _testcase_diff, In, IoSpec
+from iospec import is_equal, parse, testcase_diff as _testcase_diff, In, IoSpec
 from iospec.datatypes.node import Node
 from iospec.utils import indent
 from .test_iospec import spec1 as spec1, spec2
@@ -25,12 +25,12 @@ foofoo
 
 class TestIsEqualFunction:
     def test_io_equal(self, spec1, spec2):
-        assert isequal(spec1, spec1)
-        assert isequal(spec2, spec2)
-        assert not isequal(spec1, spec2)
+        assert is_equal(spec1, spec1)
+        assert is_equal(spec2, spec2)
+        assert not is_equal(spec1, spec2)
 
     def test_io_equal_presentation(self, spec1, spec2):
-        assert isequal(spec1, spec2, casefold=True, skip_spaces=True)
+        assert is_equal(spec1, spec2, casefold=True, skip_spaces=True)
 
 
 def test_node_equality():

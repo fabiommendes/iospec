@@ -4,7 +4,7 @@ import pprint
 import jinja2
 from generic import generic
 
-from iospec.datatypes import TestCase, SimpleTestCase, ErrorTestCase, IoSpec
+from iospec.datatypes import TestCase, StandardTestCase, ErrorTestCase, IoSpec
 from iospec.utils import tex_escape
 
 # Module constants
@@ -108,7 +108,7 @@ class Feedback:
         automatic grading.
         """
 
-        return feedback(testcase, answer_key)
+        return get_feedback(testcase, answer_key)
 
     @classmethod
     def from_json(cls, data):
@@ -153,7 +153,7 @@ class Feedback:
         Compute the grade and feedback status from the testcase and answer key.
         """
 
-        out = feedback(self.testcase, self.answer_key)
+        out = get_feedback(self.testcase, self.answer_key)
         self.grade = out.grade
         self.answer_key = out.answer_key
         if self.message is None:
@@ -318,9 +318,9 @@ class disabled:
 
 
 @generic
-def feedback(response: TestCase, answer_key: TestCase, stream=False):
+def get_feedback(response: TestCase, answer_key: TestCase, stream=False):
     """
-    Return a feedback structure that represents the success/error for a single
+    Return a Feedback instance that represents the success/error for a single
     test case.
 
     Args:
@@ -343,7 +343,7 @@ def feedback(response: TestCase, answer_key: TestCase, stream=False):
         status = response.error_type + '-error'
 
     # Correct response
-    elif list(response) == list(answer_key):
+    elif answer_key.is_equal(response):
         status = 'ok'
         grade = decimal.Decimal(1.0)
 
@@ -353,7 +353,7 @@ def feedback(response: TestCase, answer_key: TestCase, stream=False):
         grade = decimal.Decimal(0.5)
 
     # Wrong answer
-    elif isinstance(response, SimpleTestCase):
+    elif isinstance(response, StandardTestCase):
         status = 'wrong-answer'
 
     # Invalid
@@ -363,13 +363,13 @@ def feedback(response: TestCase, answer_key: TestCase, stream=False):
     return Feedback(response, answer_key, grade=grade, status=status)
 
 
-@feedback.overload
+@get_feedback.overload
 def _(response: IoSpec, answer_key: IoSpec, **kwargs):
     fb = None
     value = decimal.Decimal(1)
 
     for case, answer_key in zip(response, answer_key):
-        curr_feedback = feedback(case, answer_key, **kwargs)
+        curr_feedback = get_feedback(case, answer_key, **kwargs)
         if fb is None:
             fb = curr_feedback
         if curr_feedback.grade < value:
@@ -386,4 +386,4 @@ def presentation_equal(case1, case2):
     whitespace.
     """
 
-    return case1.isequal(case2, casefold=True, skip_spaces=True)
+    return case1.is_equal(case2, casefold=True, skip_spaces=True)

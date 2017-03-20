@@ -64,10 +64,10 @@ class TestCaseDiff:
 
     def digest(self):
         if self._digest is False:
-            from iospec.datatypes import SimpleTestCase
+            from iospec.datatypes import StandardTestCase
             self._extract_common()
             self.diff_type = self._compute_error()
-            self.common = SimpleTestCase(self._common)
+            self.common = StandardTestCase(self._common)
             self.common_source = self.common.source()
             self._digest = True
 
@@ -105,9 +105,11 @@ class TestCaseDiff:
 
 
 @generic
-def isequal(x, y, **kwargs):
+def is_equal(x, y, **kwargs):
     """
     Return True if two objects are equal up to some normalization.
+
+    Normalization options depends on the specific pair of objects.
     """
 
     return x == y
@@ -124,11 +126,11 @@ def testcase_diff(x, y):
 
 
 def normalize_testcase(x):
-    from iospec.datatypes import SimpleTestCase
+    from iospec.datatypes import StandardTestCase
 
-    if not isinstance(x, SimpleTestCase):
+    if not isinstance(x, StandardTestCase):
         tname = x.__class__.__name__
-        raise TypeError('expected a SimpleTestCase, not %s' % tname)
+        raise TypeError('expected a StandardTestCase, not %s' % tname)
 
     if not x.is_expanded:
         raise ValueError('Only supports expanded test cases')

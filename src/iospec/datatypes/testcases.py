@@ -1,6 +1,6 @@
 from iospec.datatypes import Command, In, Out, Atom, OutEllipsis, OutRegex
 from iospec.datatypes.node import Node
-from iospec.datatypes.utils import isequal
+from iospec.datatypes.utils import is_equal
 from iospec.exceptions import BuildError
 from iospec.utils import indent
 
@@ -16,7 +16,28 @@ class TestCase(Node):
             Relative priority of this test case for input expansion.
         lineno (int):
             The line number for this test case in the IoSpec source.
+
+    Test case flags:
+        is_error/is_standard/is_input:
+            Check if testcase is of the given type.
+
     """
+
+    @property
+    def is_standard_test_case(self):
+        return isinstance(self, StandardTestCase)
+
+    @property
+    def is_error_test_case(self):
+        return isinstance(self, ErrorTestCase)
+
+    @property
+    def is_input_test_case(self):
+        return isinstance(self, InputTestCase)
+
+    has_standard_test_case = property(lambda x: x.is_standard_test_case)
+    has_input_test_case = property(lambda x: x.is_input_test_case)
+    has_error_test_case = property(lambda x: x.is_error_test_case)
 
     @property
     def type(self):
@@ -35,37 +56,13 @@ class TestCase(Node):
     def priority(self, value):
         self._priority = value
 
-    @property
-    def is_error(self):
-        return isinstance(self, ErrorTestCase)
-
-    @property
-    def is_simple(self):
-        return isinstance(self, SimpleTestCase)
-
-    @property
-    def is_input(self):
-        return isinstance(self, InputTestCase)
-
-    @property
-    def is_expanded(self):
-        return all(x.is_expanded for x in self)
-
-    @property
-    def is_safe(self):
-        return all(x.is_safe for x in self)
-
-    @property
-    def is_complete(self):
-        return (not self.is_input) and all(x.is_complete for x in self)
-
     @classmethod
     def from_json(cls, data):
         json = dict(data)
         type_name = json.pop('type')
         atoms = [Atom.from_json(x) for x in json.pop('data')]
-        if type_name == 'simple':
-            result = SimpleTestCase(atoms)
+        if type_name == 'standard':
+            result = StandardTestCase(atoms)
         elif type_name == 'input':
             result = InputTestCase(atoms)
         elif type_name == 'error':
@@ -130,7 +127,15 @@ class TestCase(Node):
                 idx += 1
 
     def source(self):
-        data = ''.join(x.source() for x in self if x != Out(''))
+        def yield_sources():
+            for x in self:
+                # Ellipsis matches Out('') and makes algorithm crazy
+                if isinstance(x, OutEllipsis):
+                    yield x.source()
+                elif x != Out(''):
+                    yield x.source()
+
+        data = ''.join(yield_sources())
         return self._with_comment(data)
 
     def transform_strings(self, func):
@@ -210,7 +215,7 @@ class TestCase(Node):
         raise TypeError('invalid test case item: %r' % item)
 
 
-class SimpleTestCase(TestCase):
+class StandardTestCase(TestCase):
     """
     Regular input/output test case.
     """
@@ -223,6 +228,8 @@ class InputTestCase(TestCase):
 
     It is created by the @input and @plain decorators of the IoSpec language.
     """
+
+    is_simple = False
 
     def __init__(self, data=(), *, inline=True, **kwargs):
         plain = kwargs.pop('plain', None)
@@ -277,6 +284,8 @@ class ErrorTestCase(TestCase):
     actually ran, in case execution triggers an error.
     """
 
+    is_simple = False
+
     def error_test_case_constructor(tt):
         def method(cls, data=(), **kwds):
             if not kwds.get('error_type', tt):
@@ -303,7 +312,8 @@ class ErrorTestCase(TestCase):
         if self.error_type not in ['timeout', 'runtime', 'build']:
             raise ValueError('invalid error type: %s' % self.error_type)
         if self.error_type == 'build' and data:
-            raise ValueError('build errors must have an empty data argument')
+            raise ValueError('build errors must have an empty data argument, '
+                             'got %r' % data)
         if self.error_type == 'timeout' and self.error_message:
             raise ValueError('timeout errors do not have an associated error '
                              'message.')
@@ -356,7 +366,7 @@ class ErrorTestCase(TestCase):
 
     def get_testcase(self):
         """
-        Return a SimpleTestCase() instance with the same data in the test case
+        Return a StandardTestCase() instance with the same data in the test case
         section of the error.
 
         Build errors do not have an test case section and raise a ValueError.
@@ -365,7 +375,7 @@ class ErrorTestCase(TestCase):
         if self.error_type == 'build':
             raise ValueError('build errors have no test case section')
 
-        return SimpleTestCase(list(self))
+        return StandardTestCase(list(self))
 
     def get_error_message(self):
         """
@@ -402,15 +412,25 @@ class ErrorTestCase(TestCase):
 
         raise self.get_exception()
 
+    def _normalize_in_out_strings(self):
+        if self.error_type == 'build':
+            return
+        super()._normalize_in_out_strings()
+
+    def _normalize_in_out_streams(self):
+        if self.error_type == 'build':
+            return
+        super()._normalize_in_out_streams()
+
 
 #
 # Utility functions
 #
-@isequal.overload
+@is_equal.overload
 def _(x: ErrorTestCase, y: ErrorTestCase, **kwargs):
     if x.error_type != y.error_type:
         return False
     if x.error_message != y.error_message:
         return False
 
-    return isequal[TestCase, TestCase](x, y)
+    return is_equal[TestCase, TestCase](x, y)

@@ -10,12 +10,17 @@ class Atom(collections.UserString):
     Base class for all atomic elements.
     """
 
-    is_input = is_output = is_expanded = is_safe = is_complete = False
+    is_input = is_output = is_expanded = is_safe = is_simple = False
     escape_chars = {
         '<': '\\<',
         '$': '\\$',
         '...': '\\...',
     }
+    has_input = property(lambda x: x.is_input)
+    has_output = property(lambda x: x.is_output)
+    has_expanded = property(lambda x: x.is_expanded)
+    has_safe = property(lambda x: x.is_safe)
+    has_simple = property(lambda x: x.is_simple)
 
     @classmethod
     def from_json(cls, data):
@@ -102,7 +107,7 @@ class Comment(Atom):
     """
 
     type = 'comment'
-    is_complete = is_safe = is_expanded = True
+    is_simple = is_safe = is_expanded = True
 
     def source(self):
         return self.data
@@ -130,14 +135,14 @@ class In(InOrOut):
     """
 
     type = 'input'
-    is_input = is_safe = is_complete = is_expanded = True
+    is_input = is_safe = is_simple = is_expanded = True
 
     def source(self):
         return '<%s>\n' % super().source()
 
 
 class OutOrEllipsis(InOrOut):
-    is_output = is_safe = is_complete = is_expanded = True
+    is_output = is_safe = is_simple = is_expanded = True
 
     @classmethod
     def is_ellipsis(cls, data):
@@ -223,7 +228,7 @@ class OutRegex(InOrOut):
     """
 
     type = 'regex'
-    is_output = is_complete = is_safe = is_expanded = True
+    is_output = is_simple = is_safe = is_expanded = True
 
     def source(self):
         return '/%s/' % super().source()

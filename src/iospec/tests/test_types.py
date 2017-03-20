@@ -4,7 +4,8 @@ from numbers import Number
 import pytest
 
 import iospec
-from iospec import SimpleTestCase, In, Out
+from iospec import ErrorTestCase
+from iospec import StandardTestCase, In, Out
 
 
 class AbstractTestCase:
@@ -37,7 +38,7 @@ class AbstractTestCase:
         assert obj.priority == 42
 
     def test_object_is_simple(self, obj):
-        assert not obj.is_simple
+        assert not obj.is_standard_test_case
 
     def test_object_is_expanded(self, obj):
         assert obj.is_expanded
@@ -46,7 +47,7 @@ class AbstractTestCase:
         assert not obj.is_input
 
     def test_object_is_error(self, obj):
-        assert not obj.is_error
+        assert not obj.is_error_test_case
 
     #
     # JSON representation
@@ -75,15 +76,15 @@ class AbstractTestCase:
         assert reconstructed == data
 
 
-class TestSimpleTestCase(AbstractTestCase):
-    base_cls = iospec.SimpleTestCase
+class TestStandardTestCase(AbstractTestCase):
+    base_cls = iospec.StandardTestCase
     base_args = ([Out('foo'), In('bar')],)
-    base_type = 'simple'
-    base_json = {'type': 'simple', 'data': [['Out', 'foo'], ['In', 'bar']]}
+    base_type = 'standard'
+    base_json = {'type': 'standard', 'data': [['Out', 'foo'], ['In', 'bar']]}
     base_inputs = ['bar']
 
     def test_object_is_simple(self, obj):
-        assert obj.is_simple
+        assert obj.is_standard_test_case
 
 
 class TestInputTestCase(AbstractTestCase):
@@ -99,10 +100,10 @@ class TestInputTestCase(AbstractTestCase):
 
 class TestErrorTestCase(AbstractTestCase):
     base_cls = iospec.ErrorTestCase
-    base_args = TestSimpleTestCase.base_args
-    base_inputs = TestSimpleTestCase.base_inputs
+    base_args = TestStandardTestCase.base_args
+    base_inputs = TestStandardTestCase.base_inputs
     base_type = 'error'
-    base_json = dict(TestSimpleTestCase.base_json,
+    base_json = dict(TestStandardTestCase.base_json,
                      type='error', error_type='runtime', error_message='error')
 
     @pytest.fixture
@@ -123,7 +124,7 @@ class TestErrorTestCase(AbstractTestCase):
                    error_message='timeout')
 
     def test_object_is_error(self, obj):
-        assert obj.is_error
+        assert obj.is_error_test_case
 
     def test_error_get_error_info(self, obj):
         ex1 = obj.get_exception()
@@ -136,29 +137,46 @@ class TestErrorTestCase(AbstractTestCase):
         with pytest.raises(RuntimeError):
             obj.raise_exception()
 
+    def test_build_error_do_accept_data_attr(self, build):
+        with pytest.raises(ValueError):
+            ErrorTestCase([Out('foo'), In('bar')], error_type='build')
+
+    def test_build_error_json_has_no_data(self, build):
+        assert not build.to_json()['data']
+
+    def test_build_error_normalization_do_not_insert_spurious_data(self, build: ErrorTestCase):
+        assert build.error_type == 'build'
+        assert not build.to_json()['data']
+        build._normalize_trailing_spaces()
+        build._normalize_in_out_streams()
+        build._normalize_in_out_strings()
+        build._join_out_strings()
+        build.fuse_outputs()
+        assert not build.to_json()['data']
+
 
 #
 # Generic tests that are not bound to specific test case types
 #
 class TestExamples:
     def test_normalize_consecutive_outputs(self):
-        tc = SimpleTestCase([Out('foo'), Out('bar'), In('baz'), Out('eggs')])
+        tc = StandardTestCase([Out('foo'), Out('bar'), In('baz'), Out('eggs')])
         tc.normalize()
         assert list(tc) == [Out('foo\nbar'), In('baz'), Out('eggs')]
 
     def test_normalize_alternate_in_out_strings(self):
-        tc = SimpleTestCase([Out('bar'), In('baz'), In('zaz'), Out('eggs')])
+        tc = StandardTestCase([Out('bar'), In('baz'), In('zaz'), Out('eggs')])
         tc.normalize()
         assert list(tc) == [Out('bar'), In('baz'), Out(''), In('zaz'),
                             Out('eggs')]
 
     def test_normalize_start_with_out_string(self):
-        tc = SimpleTestCase([In('bar'), In('baz'), Out('eggs')])
+        tc = StandardTestCase([In('bar'), In('baz'), Out('eggs')])
         tc.normalize()
         assert list(tc) == [Out(''), In('bar'), Out(''), In('baz'), Out('eggs')]
 
     def test_remove_trailing_spaces(self):
-        tc = SimpleTestCase([Out('bar '), In('baz'), Out('eggs \nbaz\n')])
+        tc = StandardTestCase([Out('bar '), In('baz'), Out('eggs \nbaz\n')])
         tc.normalize()
         assert list(tc) == [Out('bar '), In('baz'), Out('eggs\nbaz')]
 

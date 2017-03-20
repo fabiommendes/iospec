@@ -3,13 +3,53 @@ import copy
 import pprint
 import re
 
-from iospec.datatypes.utils import isequal
+from iospec.datatypes.utils import is_equal
 
 
 class Node(collections.MutableSequence):
     """
     Base class for IoSpec and TestCase objects.
     """
+
+    @property
+    def is_input(self):
+        return all(x.is_input for x in self)
+
+    @property
+    def has_input(self):
+        return any(x.has_input for x in self)
+
+    @property
+    def is_output(self):
+        return all(x.is_output for x in self)
+
+    @property
+    def has_output(self):
+        return any(x.has_output for x in self)
+
+    @property
+    def is_expanded(self):
+        return all(x.is_expanded for x in self)
+
+    @property
+    def has_expanded(self):
+        return any(x.has_expanded for x in self)
+
+    @property
+    def is_simple(self):
+        return all(x.is_simple for x in self)
+
+    @property
+    def has_simple(self):
+        return all(x.has_simple for x in self)
+
+    @property
+    def is_safe(self):
+        return all(x.is_safe for x in self)
+
+    @property
+    def has_safe(self):
+        return any(x.has_simple for x in self)
 
     def __init__(self, data=(), *, comment=None):
         self._data = []
@@ -52,7 +92,7 @@ class Node(collections.MutableSequence):
 
     def __eq__(self, other):
         if type(self) is type(other):
-            return self.isequal(other)
+            return self.is_equal(other)
         return NotImplemented
 
     def source(self):
@@ -171,7 +211,7 @@ class Node(collections.MutableSequence):
     
     def skip_spaces(self):
         """
-        Remove all extra repeated spaces from strings. *INPLACE*.
+        Remove all extra repeated spaces from strings *INPLACE*.
         """
 
         regex = re.compile('\s+')
@@ -189,8 +229,8 @@ class Node(collections.MutableSequence):
         By default, make the following fixes:
 
         * Remove trailing spaces from outputs
-        * Alternate Out/In strings in SimpleTestCase nodes.
-        * Join consecutive Out strings putting newlines between them.
+        * Alternate Out/In strings in StandardTestCase nodes.
+        * Join consecutive Out strings.
 
         If ``stream=True``, normalize to a C-like interaction: all inputs are
         moved to the beginning and all outputs are fused in the end of file.
@@ -206,7 +246,7 @@ class Node(collections.MutableSequence):
             self._normalize_trailing_spaces()
             self._normalize_in_out_strings()
 
-    def isequal(self, other, normalize=True, casefold=False, skip_spaces=False):
+    def is_equal(self, other, normalize=True, casefold=False, skip_spaces=False):
         """
         Test if object is equal to argument.
 
@@ -222,31 +262,34 @@ class Node(collections.MutableSequence):
                 If True, skips all spaces in input and output strings.
         """
 
-        return isequal(self, other,
-                       normalize=normalize,
-                       casefold=casefold,
-                       skip_spaces=skip_spaces)
+        return is_equal(self, other,
+                        normalize=normalize,
+                        casefold=casefold,
+                        skip_spaces=skip_spaces)
 
     def _normalize_trailing_spaces(self):
-        pass
+        raise NotImplementedError('must be implemented in child classes')
 
     def _normalize_in_out_strings(self):
-        pass
+        raise NotImplementedError('must be implemented in child classes')
 
     def _normalize_in_out_streams(self):
-        pass
+        raise NotImplementedError('must be implemented in child classes')
 
     def _join_out_strings(self):
-        pass
+        raise NotImplementedError('must be implemented in child classes')
 
     def _convert_item(self, item):
         return item
 
 
-@isequal.overload
+@is_equal.overload
 def _(x: Node, y: Node, normalize=True, casefold=False, skip_spaces=False):
     if not (isinstance(x, type(y)) or isinstance(y, type(x))):
         return False
+
+    if x._data == y._data:
+        return True
 
     if normalize or casefold or skip_spaces:
         x = x.copy()

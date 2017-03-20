@@ -96,7 +96,7 @@ def test_examples(example_iospec, example_json):
 
 def test_can_get_error_data(spec_with_error):
     io = spec_with_error
-    assert io.has_errors
+    assert io.has_error_test_case
     assert io.get_error_type() == 'runtime'
     assert io.get_error_message() == 'invalid name: 42'
     ex = io.get_exception()
@@ -106,7 +106,11 @@ def test_can_get_error_data(spec_with_error):
 
 def test_error_data_on_good_source(spec1):
     io = spec1
-    assert not io.has_errors
+    assert not io.has_error_test_case
     assert io.get_error_type() is None
     assert io.get_error_message() is None
     assert io.get_exception() is None
+
+
+def test_has_version():
+    from iospec.__meta__ import __version__
