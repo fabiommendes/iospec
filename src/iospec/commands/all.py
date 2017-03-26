@@ -1,4 +1,5 @@
 import random as _random
+import math as _math
 
 from iospec.commands import base
 from iospec.commands.utils import iscommand, parse_number as _parse_number
@@ -74,17 +75,14 @@ class Email(base.FakerString):
     """
     A random e-mail.
 
-        $e-mail     --> random string with a plausible e-mail.
-        $e-mail(xx) --> e-mail is truncated to have at most xx characters.
+        $email     --> random string with a plausible e-mail.
+        $email(xx) --> e-mail is truncated to have at most xx characters.
 
     Names generated with this function do not have any spaces.
     """
 
     def fake(self):
-        name = ' '
-        while ' ' not in name:
-            name = _fake.email()
-        return name
+        return _fake.email()
 
 
 @iscommand
@@ -155,12 +153,18 @@ class Fake(base.Command):
             'add_provider', 'format', 'get_formatter', 'get_providers' 'parse',
             'provider', 'providers', 'set_formatter',
         ]
-        if attr.startswith('_') or attr not in dir(_fake) or attr in blacklist:
+        try:
+            getattr(_fake, attr)
+        except AttributeError:
+            blacklist.append(attr)
+
+        if attr.startswith('_') or attr in blacklist:
             raise SyntaxError('invalid fake method: %s' % attr)
         self.faker = attr
 
     def generate(self):
-        return getattr(_fake, self.faker)()
+        faker = getattr(_fake, self.faker)
+        return faker()
 
 
 @iscommand
@@ -170,18 +174,9 @@ class Int(base.NumericBase):
     generate different intervals
 
         $int       --> any random integer
-        $int(+)    --> positive random value (zero inclusive)
-        $int(-)    --> negative value (zero inclusive)
-        $int(++)   --> positive value (do not include zero)
-        $int(--)   --> negative value (do not include zero)
-        $int(+a)   --> positive values up to "a" (include zero)
+        $int(a)    --> positive values up to "a" (include zero)
         $int(-a)   --> negative values up to "a" (include zero)
-        $int(++a)  --> positive values up to "a" (do not include zero)
-        $int(--a)  --> negative values up to "a" (do not include zero)
-        $int(a)    --> symmetric interval (-a, a)
         $int(a,b)  --> interval (a, b) (inclusive)
-        $int(a..b) --> same as before
-        $int(a:b)  --> interval a to b - 1. Like a Python range.
     """
 
     def parse(self, arg):
@@ -204,8 +199,15 @@ class Float(base.NumericBase):
                                      minvalue=-2 ** 50, maxvalue=2 ** 50))
 
     def generate(self):
-        return _random.uniform(self.start, self.stop)
-
+        number = _random.uniform(self.start, self.stop)
+        if _random.random() <= 0.25:
+            return float(_math.trunc(number))
+        else:
+            st = list(str(number))
+            if len(st) >= 6:
+                st[5:] = ['0' if x != '.' else '.' for x in st[5:]]
+                return float(''.join(st))
+            return round(number, 2)
 
 @iscommand
 class Digit(base.NoArgCommand):

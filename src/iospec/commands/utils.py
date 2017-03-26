@@ -3,6 +3,17 @@ from iospec.commands.base import Command
 COMMANDS_NAMESPACE = {}
 
 
+def number(x):
+    """
+    Convert string to number.
+    """
+
+    try:
+        return int(x)
+    except ValueError:
+        return float(x)
+
+
 def iscommand(cls):
     """
     Register Command subclasses into the COMMANDS dict.
@@ -14,69 +25,37 @@ def iscommand(cls):
     return cls
 
 
-def parse_number(arg, number_class, minvalue=-2 ** 31, maxvalue=2 ** 31 - 1):
+def parse_number(arg, number_class, minvalue=-1000000, maxvalue=1000000):
     """
     Parse a string of text that represents a valid numeric range.
 
     The syntax is:
              ==> (minvalue, maxvalue)
-        +    ==> (0, maxvalue)
-        -    ==> (minvalue, 0)
-        ++   ==> (1, maxvalue)
-        --   ==> (minvalue, -1)
-        +a   ==> (0, a)
+        a    ==> (0, a)
         -a   ==> (-a, 0)
-        a    ==> (-a, a)
-        a..b ==> (a, b)
         a,b  ==> (a, b)
-        a:b  ==> (a, b-1)
     """
 
     arg = (arg or '').strip()
 
-    try:
-        if not arg:
-            pass
-        elif arg == '+':
-            minvalue = 0
-        elif arg == '-':
-            maxvalue = 0
-        elif arg == '++':
-            minvalue = 1
-        elif arg == '--':
-            maxvalue = -1
-        elif arg.startswith('-'):
-            maxvalue = 0
-            minvalue = -number_class(arg[1:])
-        elif arg.startswith('+'):
-            minvalue = 0
-            maxvalue = number_class(arg[1:])
-        elif arg.startswith('--'):
-            maxvalue = -1
-            minvalue = -number_class(arg[2:])
-        elif arg.startswith('++'):
-            minvalue = 1
-            maxvalue = number_class(arg[2:])
+    # Empty argument
+    if not arg:
+        return (minvalue, maxvalue)
 
-        elif '..' in arg:
-            min, _, max = arg.partition('..')
-            minvalue = number_class(min)
-            maxvalue = number_class(max)
-        elif ':' in arg:
-            min, _, max = arg.partition(':')
-            minvalue = number_class(min)
-            maxvalue = number_class(max) - 1
-        elif ',' in arg:
-            min, _, max = arg.partition(',')
-            minvalue = number_class(min)
-            maxvalue = number_class(max)
-        else:
-            maxvalue = number_class(arg)
-            minvalue = -maxvalue
-    except ValueError:
-        raise SyntaxError('invalid interval specification: %s' % arg)
+    # Interval
+    if ',' in arg:
+        x, y = arg.split(',')
+        x, y = number(x), number(y)
+        if x > y:
+            raise ValueError('first argument is greater then second')
+        return x, y
 
-    return (minvalue, maxvalue)
+    # Number
+    value = number(arg)
+    if value >= 0:
+        return 0, value
+    else:
+        return value, 0
 
 
 def wrapped_command(cmd):
